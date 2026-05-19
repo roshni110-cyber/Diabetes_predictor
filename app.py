@@ -13,6 +13,7 @@ from datetime import datetime
 import tempfile
 import os
 import random
+import re
 
 # ==============================
 # PAGE CONFIG
@@ -34,7 +35,8 @@ default_values = {
     "selected_menu": "🏠 Welcome",
     "otp_sent": False,
     "login_otp": None,
-    "login_username": "",
+    "login_identifier": "",
+    "login_username": None,
     "active_patient_name": "",
     "active_patient_id": "",
     "active_patient_age": None,
@@ -54,6 +56,8 @@ if "users_db" not in st.session_state:
             "full_name": "Administrator",
             "role": "Doctor",
             "account_type": "Doctor",
+            "email": "admin@gmail.com",
+            "phone": "9999999999",
             "specialization": "General Physician",
             "license": "DEMO-ADMIN"
         }
@@ -334,6 +338,28 @@ def go_to_page(page_name):
 def generate_otp():
     return str(random.randint(100000, 999999))
 
+
+def clean_phone(value):
+    return re.sub(r"\D", "", value or "")
+
+
+def find_user_by_email_or_phone(identifier):
+    """Find a user using registered email ID or phone number."""
+    search_value = (identifier or "").strip().lower()
+    search_phone = clean_phone(search_value)
+
+    for username, user_data in st.session_state.users_db.items():
+        email = str(user_data.get("email", "")).strip().lower()
+        phone = clean_phone(str(user_data.get("phone", "")))
+
+        if search_value and search_value == email:
+            return username, user_data
+
+        if search_phone and search_phone == phone:
+            return username, user_data
+
+    return None, None
+
 def get_current_user_data():
     if st.session_state.current_user:
         return st.session_state.users_db.get(st.session_state.current_user, {})
@@ -533,36 +559,46 @@ if menu == "🏠 Welcome":
 # ==============================
 elif menu == "🔐 Login":
     st.markdown('<div class="accent-line"></div>', unsafe_allow_html=True)
-    st.markdown("## Login with OTP")
-    st.markdown("Enter your username and verify the one-time password to access the system.")
+    st.markdown("## Login with Email or Phone OTP")
+    st.markdown("Enter your registered email ID or phone number, generate OTP, and verify it to login.")
 
     col_l, col_r = st.columns([1, 1])
 
     with col_l:
         st.markdown('<div class="card">', unsafe_allow_html=True)
 
-        username = st.text_input(
-            "Username",
-            value=st.session_state.login_username,
-            placeholder="Enter your username"
+        login_identifier = st.text_input(
+            "Email ID or Phone Number",
+            value=st.session_state.login_identifier,
+            placeholder="Example: admin@gmail.com or 9999999999",
+            key="login_identifier_input"
         )
 
-        if st.button("Send OTP", use_container_width=True):
-            db = st.session_state.users_db
-            if username in db:
-                st.session_state.login_username = username
+        if st.button("Send / Generate OTP", use_container_width=True):
+            username_found, user_data = find_user_by_email_or_phone(login_identifier)
+
+            if user_data:
+                st.session_state.login_identifier = login_identifier.strip()
+                st.session_state.login_username = username_found
                 st.session_state.login_otp = generate_otp()
                 st.session_state.otp_sent = True
-                st.success("OTP generated successfully.")
-                st.info(f"Demo OTP: {st.session_state.login_otp}")
+                st.rerun()
             else:
-                st.error("Username not found. Please sign up first.")
+                st.session_state.otp_sent = False
+                st.session_state.login_otp = None
+                st.session_state.login_username = None
+                st.error("No account found with this email ID or phone number. Please sign up first.")
 
-        if st.session_state.otp_sent:
-            otp_input = st.text_input("Enter OTP", placeholder="Enter 6-digit OTP")
+        if st.session_state.otp_sent and st.session_state.login_otp:
+            contact_type = "email ID" if "@" in st.session_state.login_identifier else "phone number"
+            st.success(f"OTP generated for your registered {contact_type}.")
+            st.info(f"Demo OTP for testing: {st.session_state.login_otp}")
+            st.caption("In a real app, this OTP will be sent through an email/SMS service. For this project demo, it is shown here.")
+
+            otp_input = st.text_input("Enter OTP", placeholder="Enter 6-digit OTP", key="otp_input")
 
             if st.button("Verify OTP and Login →", use_container_width=True):
-                if otp_input == st.session_state.login_otp:
+                if otp_input.strip() == str(st.session_state.login_otp):
                     db = st.session_state.users_db
                     user_data = db[st.session_state.login_username]
 
@@ -583,7 +619,7 @@ elif menu == "🔐 Login":
                     st.success(f"Welcome, {user_data.get('full_name', 'User')}!")
                     st.rerun()
                 else:
-                    st.error("Invalid OTP. Please check the demo OTP and try again.")
+                    st.error("Invalid OTP. Please enter the same OTP shown above.")
 
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown("New user? Open **Sign Up** from the sidebar.")
@@ -592,10 +628,11 @@ elif menu == "🔐 Login":
     with col_r:
         st.markdown("""
         <div class="card">
-          <h4>How OTP Login Works</h4>
-          <p>In this project version, the OTP is shown on the screen for demo testing.</p>
-          <p>In a real application, the OTP should be sent through email or SMS.</p>
-          <p><b>Demo username:</b> admin</p>
+          <h4>OTP Login</h4>
+          <p>You can login using your registered email ID or phone number.</p>
+          <p>For project demo testing, the OTP is shown on the screen.</p>
+          <p>For a real app, connect SMTP email service or SMS API like Twilio/Fast2SMS.</p>
+          <p><b>Demo email:</b> admin@gmail.com<br><b>Demo phone:</b> 9999999999</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -631,26 +668,40 @@ elif menu == "📝 Sign Up":
             su_specialization = None
             su_license = None
 
+        st.markdown("#### Contact Details for OTP Login")
+        su_email = st.text_input("Email ID", placeholder="Example: rose@gmail.com", key="su_email")
+        su_phone = st.text_input("Phone Number", placeholder="Example: 9876543210", key="su_phone")
+
         st.markdown("#### Login Details")
         su_username = st.text_input("Choose Username", placeholder="Example: rose123", key="su_user")
 
         if st.button("Create Account", use_container_width=True):
             db = st.session_state.users_db
 
-            if not su_fullname or not su_username:
-                st.warning("Please fill all required fields.")
+            if not su_fullname or not su_username or not su_email or not su_phone:
+                st.warning("Please fill full name, email ID, phone number and username.")
+            elif "@" not in su_email or "." not in su_email:
+                st.error("Please enter a valid email ID.")
+            elif len(clean_phone(su_phone)) < 10:
+                st.error("Please enter a valid phone number.")
             elif len(su_username) < 3:
                 st.error("Username must be at least 3 characters.")
             elif " " in su_username:
                 st.error("Username cannot contain spaces.")
             elif su_username in db:
                 st.error("Username already exists. Choose another username.")
+            elif any(str(user.get("email", "")).strip().lower() == su_email.strip().lower() for user in db.values()):
+                st.error("This email ID is already registered.")
+            elif any(clean_phone(str(user.get("phone", ""))) == clean_phone(su_phone) for user in db.values()):
+                st.error("This phone number is already registered.")
             else:
                 db[su_username] = {
                     "password": "",
                     "full_name": su_fullname,
                     "role": account_type,
                     "account_type": account_type,
+                    "email": su_email.strip(),
+                    "phone": clean_phone(su_phone),
                     "specialization": su_specialization,
                     "license": su_license,
                     "age": su_age,
@@ -683,7 +734,8 @@ elif menu == "📝 Sign Up":
           <h4>Sign Up Rules</h4>
           <ul>
             <li>Both Doctor and Patient accounts can be created.</li>
-            <li>The username must be unique.</li>
+            <li>Email ID, phone number and username must be unique.</li>
+            <li>OTP login will work with registered email ID or phone number.</li>
             <li>After sign up, the user will move directly to the correct page.</li>
             <li>Patients will move to the Prediction page.</li>
             <li>Doctors will move to the Patient Enrollment page.</li>
@@ -693,7 +745,7 @@ elif menu == "📝 Sign Up":
 
         st.markdown('<div class="card"><h4>Registered Users</h4>', unsafe_allow_html=True)
         for uname, udata in st.session_state.users_db.items():
-            st.markdown(f"**{udata['full_name']}**  \n`{uname}` · {udata.get('role', 'User')}")
+            st.markdown(f"**{udata['full_name']}**  \n`{uname}` · {udata.get('role', 'User')}  \nEmail: `{udata.get('email', 'Not added')}`  \nPhone: `{udata.get('phone', 'Not added')}`")
             st.divider()
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -899,68 +951,88 @@ elif menu == "🔬 Prediction":
             ])
 
             with tab1:
-                st.markdown("#### Glucose Level Gauge")
-                fig, ax = plt.subplots(figsize=(7, 2.8))
-                ax.barh(["Glucose"], [glucose])
-                ax.axvline(100, linestyle="--", label="Normal Limit")
-                ax.axvline(126, linestyle="--", label="Diabetes Check Level")
+                st.markdown("#### Glucose Level")
+                fig, ax = plt.subplots(figsize=(4.8, 2.3))
+                ax.barh(["Patient"], [glucose], height=0.35)
+                ax.axvspan(50, 99, alpha=0.08, label="Normal")
+                ax.axvspan(100, 125, alpha=0.08, label="Prediabetes")
+                ax.axvspan(126, 200, alpha=0.08, label="High")
+                ax.axvline(100, linestyle="--", linewidth=1)
+                ax.axvline(126, linestyle="--", linewidth=1)
                 ax.set_xlim(50, 200)
                 ax.set_xlabel("mg/dL")
-                ax.set_title("Patient Glucose Level")
-                ax.legend()
-                st.pyplot(fig)
-                st.caption("This chart compares the patient's glucose value with common clinical reference points.")
+                ax.set_title("Glucose Status")
+                ax.legend(fontsize=7, loc="upper right")
+                fig.tight_layout()
+                st.pyplot(fig, use_container_width=False)
+                st.caption("Shows the patient glucose value against normal, prediabetes and high ranges.")
 
             with tab2:
-                st.markdown("#### BMI Category Chart")
-                categories = ["Underweight", "Normal", "Overweight", "Obese"]
-                bmi_ranges = [18.5, 6.4, 4.9, 10]
-                fig, ax = plt.subplots(figsize=(7, 3.5))
-                ax.bar(categories, bmi_ranges)
-                ax.scatter(["Normal" if bmi < 25 else "Overweight" if bmi < 30 else "Obese"], [bmi], s=120, marker="D", label="Patient BMI")
-                ax.axhline(bmi, linestyle="--")
-                ax.set_ylabel("BMI Value")
-                ax.set_title("BMI Category Comparison")
-                ax.legend()
-                st.pyplot(fig)
-                st.caption("This chart shows where the patient's BMI falls compared with common BMI categories.")
+                st.markdown("#### BMI Level")
+                fig, ax = plt.subplots(figsize=(4.8, 2.5))
+                categories = ["Under", "Normal", "Over", "Obese"]
+                limits = [18.5, 24.9, 29.9, 40]
+                ax.plot(categories, limits, marker="o", linewidth=2, label="Category limit")
+                patient_category = "Under" if bmi < 18.5 else "Normal" if bmi < 25 else "Over" if bmi < 30 else "Obese"
+                ax.scatter([patient_category], [bmi], s=90, marker="D", label="Patient BMI")
+                ax.set_ylabel("BMI")
+                ax.set_title("BMI Category Position")
+                ax.grid(True, alpha=0.25)
+                ax.legend(fontsize=7)
+                fig.tight_layout()
+                st.pyplot(fig, use_container_width=False)
+                st.caption("Shows the patient's BMI position in standard BMI categories.")
 
             with tab3:
-                st.markdown("#### Blood Pressure Status")
-                labels = ["Low", "Normal", "High"]
-                values = [60, 80, 100]
-                fig, ax = plt.subplots(figsize=(6, 4))
-                ax.pie(values, labels=labels, autopct="%1.0f%%", startangle=90)
-                ax.set_title(f"Patient Blood Pressure: {bp} mm Hg")
-                st.pyplot(fig)
-                st.caption("This pie chart gives a simple visual reference for low, normal and high blood pressure zones.")
+                st.markdown("#### Blood Pressure Donut Chart")
+                low_part = max(min(bp, 80), 0)
+                high_part = max(120 - bp, 0)
+                patient_part = max(120 - low_part - high_part, 1)
+                values = [low_part, patient_part, high_part]
+                labels = ["Lower Zone", "Patient Zone", "Remaining Zone"]
+                fig, ax = plt.subplots(figsize=(3.8, 3.0))
+                wedges, texts, autotexts = ax.pie(
+                    values,
+                    labels=labels,
+                    autopct="%1.0f%%",
+                    startangle=90,
+                    pctdistance=0.78,
+                    wedgeprops={"width": 0.38, "edgecolor": "white"},
+                    textprops={"fontsize": 8}
+                )
+                ax.text(0, 0, f"{bp}\nmm Hg", ha="center", va="center", fontsize=12, fontweight="bold")
+                ax.set_title("Blood Pressure Status", fontsize=11)
+                fig.tight_layout()
+                st.pyplot(fig, use_container_width=False)
+                st.caption("A cleaner donut chart showing blood pressure as a compact professional visual.")
 
             with tab4:
-                st.markdown("#### Insulin Level Trend View")
-                points = ["Start", "Patient", "Reference"]
-                insulin_values = [0, insulin, 300]
-                fig, ax = plt.subplots(figsize=(7, 3.5))
-                ax.plot(points, insulin_values, marker="o", linewidth=2)
-                ax.fill_between(points, insulin_values, alpha=0.15)
+                st.markdown("#### Insulin Level")
+                fig, ax = plt.subplots(figsize=(4.8, 2.5))
+                ax.fill_between([0, 1, 2], [0, insulin, 300], alpha=0.16)
+                ax.plot(["Low", "Patient", "Upper"], [0, insulin, 300], marker="o", linewidth=2)
                 ax.set_ylabel("μU/mL")
-                ax.set_title("Insulin Level View")
-                ax.grid(True, alpha=0.3)
-                st.pyplot(fig)
-                st.caption("This chart gives a trend-style view of the patient's insulin level.")
+                ax.set_title("Insulin Range View")
+                ax.grid(True, alpha=0.25)
+                fig.tight_layout()
+                st.pyplot(fig, use_container_width=False)
+                st.caption("Shows the insulin value in a simple range-style trend view.")
 
             with tab5:
                 st.markdown("#### Overall Patient Profile")
                 values = [glucose, bp, skin, insulin, bmi, dpf, age]
                 labels = ["Glucose", "BP", "Skin", "Insulin", "BMI", "DPF", "Age"]
 
-                fig, ax = plt.subplots(figsize=(8, 4))
+                fig, ax = plt.subplots(figsize=(5.3, 2.8))
                 ax.plot(labels, values, marker="o", linewidth=2)
-                ax.fill_between(labels, values, alpha=0.15)
-                ax.set_title("Overall Patient Health Profile")
+                ax.fill_between(labels, values, alpha=0.12)
+                ax.set_title("Overall Health Profile", fontsize=11)
                 ax.set_ylabel("Values")
-                ax.grid(True, alpha=0.3)
-                st.pyplot(fig)
-                st.caption("This overall chart shows all selected patient values in one combined profile.")
+                ax.grid(True, alpha=0.25)
+                plt.xticks(rotation=20)
+                fig.tight_layout()
+                st.pyplot(fig, use_container_width=False)
+                st.caption("Overall graph is kept, but made smaller and cleaner.")
 
             st.markdown("### Medical Advice")
 
