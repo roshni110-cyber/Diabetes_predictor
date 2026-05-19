@@ -3,3 +3,6 @@ pandas
 numpy
 scikit-learn
 joblib
+pillow
+reportlab
+matplotlib
