@@ -1,10 +1,12 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import pickle
 from PIL import Image
 import base64
 import io
 import matplotlib.pyplot as plt
+from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
@@ -387,6 +389,61 @@ def generate_otp():
 def clean_phone(value):
     return re.sub(r"\D", "", value or "")
 
+
+
+
+def build_whatsapp_file_share_button(pdf_bytes, file_name, caption):
+    """Create a browser share button for the generated PDF.
+    Works on mobile browsers that support Web Share API file sharing.
+    Desktop WhatsApp Web may still require manual attachment.
+    """
+    pdf_b64 = base64.b64encode(pdf_bytes).decode("utf-8")
+    safe_caption = caption.replace("`", "'").replace("\\", "\\\\")
+    components.html(f"""
+    <div style="margin-top:12px;">
+      <button id="sharePdfBtn" style="
+        background:linear-gradient(135deg,#16A34A,#22C55E);
+        color:white;
+        border:none;
+        padding:12px 20px;
+        border-radius:12px;
+        cursor:pointer;
+        font-weight:700;
+        box-shadow:0 8px 20px rgba(34,197,94,0.25);
+        font-family:Arial, sans-serif;">
+        Share PDF File on WhatsApp
+      </button>
+      <p id="shareStatus" style="font-family:Arial, sans-serif; font-size:13px; color:#475569;"></p>
+    </div>
+    <script>
+    const btn = document.getElementById('sharePdfBtn');
+    const status = document.getElementById('shareStatus');
+    btn.onclick = async () => {{
+      try {{
+        const b64 = "{pdf_b64}";
+        const byteCharacters = atob(b64);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {{
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }}
+        const byteArray = new Uint8Array(byteNumbers);
+        const file = new File([byteArray], "{file_name}", {{type: 'application/pdf'}});
+        if (navigator.canShare && navigator.canShare({{ files: [file] }})) {{
+          await navigator.share({{
+            title: 'GlucoTrack Diabetes Report',
+            text: `{safe_caption}`,
+            files: [file]
+          }});
+          status.innerText = 'Share panel opened. Select WhatsApp to send the PDF.';
+        }} else {{
+          status.innerText = 'Your browser cannot directly share PDF files. Please download the report and attach it in WhatsApp.';
+        }}
+      }} catch (err) {{
+        status.innerText = 'PDF sharing is not supported here. Download the report and attach it in WhatsApp.';
+      }}
+    }};
+    </script>
+    """, height=95)
 
 def find_user_by_email_or_phone(identifier):
     """Find a user using registered email ID or phone number."""
@@ -1286,17 +1343,27 @@ elif menu == "🔬 Prediction":
                 st.markdown("""
                 <div class="card" style="border-left:5px solid #2563EB;">
                     <h4 style="margin-bottom:0.4rem;">Report Ready</h4>
-                    <p style="margin-bottom:0.2rem;">Download the PDF report and share the report summary on WhatsApp.</p>
-                    <p style="font-size:0.85rem; opacity:0.75;">Note: WhatsApp web links can share text directly. Attach the downloaded PDF manually in WhatsApp if needed.</p>
+                    <p style="margin-bottom:0.2rem;">Download the PDF report or share the PDF file from the browser share button.</p>
+                    <p style="font-size:0.85rem; opacity:0.75;">The PDF file share button works best on mobile browsers. If desktop browser blocks file sharing, download the PDF and attach it in WhatsApp.</p>
                 </div>
                 """, unsafe_allow_html=True)
+
+                pdf_file_name = f"{patient_name_report}_professional_report.pdf"
 
                 st.download_button(
                     label="Download Professional PDF Report",
                     data=pdf_bytes,
-                    file_name=f"{patient_name_report}_professional_report.pdf",
+                    file_name=pdf_file_name,
                     mime="application/pdf"
                 )
+
+                share_caption = (
+                    f"GLUCOTRACK Diabetes Prediction Report\n"
+                    f"Patient Name: {patient_name_report}\n"
+                    f"Patient ID: {patient_id_report}\n"
+                    f"Prediction Result: {result_text}"
+                )
+                build_whatsapp_file_share_button(pdf_bytes, pdf_file_name, share_caption)
 
                 whatsapp_message = quote(
                     f"GLUCOTRACK Diabetes Prediction Report\n\n"
