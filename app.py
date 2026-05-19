@@ -69,17 +69,17 @@ if "users_db" not in st.session_state:
 def apply_theme(theme):
     is_dark = theme == "Dark"
 
-    bg = "#0F1020" if is_dark else "#F5F3FF"
-    sidebar_bg = "#17182E" if is_dark else "#FFFFFF"
-    card_bg = "#1F213A" if is_dark else "#FFFFFF"
+    bg = "#0B1220" if is_dark else "#F8FAFC"
+    sidebar_bg = "#111827" if is_dark else "#E0F2FE"
+    card_bg = "#172033" if is_dark else "#FFFFFF"
     text_main = "#F8FAFC" if is_dark else "#111827"
-    text_sub = "#B8B9D6" if is_dark else "#6B7280"
+    text_sub = "#CBD5E1" if is_dark else "#475569"
     text_input = "#F8FAFC" if is_dark else "#111827"
-    accent = "#7C3AED"
-    accent2 = "#2563EB"
-    border = "#343654" if is_dark else "#DDD6FE"
-    input_bg = "#252847" if is_dark else "#FFFFFF"
-    hover_bg = "#343654" if is_dark else "#EDE9FE"
+    accent = "#0F766E"
+    accent2 = "#0284C7"
+    border = "#334155" if is_dark else "#BAE6FD"
+    input_bg = "#1E293B" if is_dark else "#FFFFFF"
+    hover_bg = "#0F766E" if is_dark else "#CFFAFE"
 
     st.markdown(f"""
     <style>
@@ -229,12 +229,12 @@ def apply_theme(theme):
         font-weight: 700 !important;
         letter-spacing: 0.03em;
         transition: all 0.2s ease !important;
-        box-shadow: 0 5px 18px rgba(124,58,237,0.28) !important;
+        box-shadow: 0 5px 18px rgba(15,118,110,0.28) !important;
     }}
 
     .stButton > button:hover {{
         transform: translateY(-1px) !important;
-        box-shadow: 0 8px 24px rgba(124,58,237,0.42) !important;
+        box-shadow: 0 8px 24px rgba(15,118,110,0.42) !important;
         filter: brightness(1.05) !important;
     }}
 
@@ -314,6 +314,51 @@ def apply_theme(theme):
     .stSuccess, .stError, .stWarning, .stInfo {{
         border-radius: 12px !important;
     }}
+
+    section[data-testid="stSidebar"] div[role="radiogroup"] label {{
+        border-radius: 12px !important;
+        padding: 0.65rem 0.85rem !important;
+        margin: 0.25rem 0 !important;
+        border: 1px solid transparent !important;
+        transition: all 0.2s ease !important;
+    }}
+
+    section[data-testid="stSidebar"] div[role="radiogroup"] label:hover {{
+        background: rgba(2,132,199,0.16) !important;
+        border-color: {border} !important;
+    }}
+
+    .feature-card {{
+        background: {card_bg};
+        border: 1px solid {border};
+        border-radius: 18px;
+        padding: 1.2rem;
+        min-height: 155px;
+        box-shadow: 0 10px 30px rgba(15,23,42,0.08);
+    }}
+
+    .feature-card .feature-value {{
+        font-size: 1.6rem;
+        font-weight: 800;
+        color: {accent} !important;
+        margin-bottom: 0.35rem;
+    }}
+
+    .feature-card .feature-title {{
+        font-size: 0.85rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: {text_main} !important;
+        margin-bottom: 0.4rem;
+    }}
+
+    .feature-card .feature-desc {{
+        font-size: 0.85rem;
+        line-height: 1.55;
+        color: {text_sub} !important;
+    }}
+
     </style>
     """, unsafe_allow_html=True)
 
@@ -535,75 +580,58 @@ if menu == "🏠 Welcome":
     st.markdown('<div class="accent-line"></div>', unsafe_allow_html=True)
     st.markdown('<div class="hero-title">Early Detection.<br>Better Health Decisions.</div>', unsafe_allow_html=True)
     st.markdown(
-        '<div class="hero-sub">GlucoTrack is a diabetes risk prediction system. It uses patient health values and a machine learning model to give a quick risk result.</div>',
+        '<div class="hero-sub">GlucoTrack is a professional diabetes risk prediction system. It uses patient health values and a machine learning model to show a quick risk result and generate a patient report.</div>',
         unsafe_allow_html=True
     )
     st.markdown("<br>", unsafe_allow_html=True)
 
+    if st.button("Get Started →", use_container_width=False):
+        st.session_state.selected_menu = "🔐 Login"
+        st.rerun()
+
+    st.markdown("### Key Features")
     c1, c2, c3, c4 = st.columns(4)
-    tiles = [("Fast", "Prediction"), ("8", "Main Inputs"), ("OTP", "Login"), ("PDF", "Report")]
-    for col, (val, lbl) in zip([c1, c2, c3, c4], tiles):
+    features = [
+        ("Fast", "Prediction", "The system gives the diabetes risk result in a few seconds after entering patient values."),
+        ("8", "Main Inputs", "It uses 8 important medical inputs such as glucose, BMI, blood pressure, insulin and age."),
+        ("OTP", "Login", "Users can log in using password or OTP with their registered email ID or phone number."),
+        ("PDF", "Report", "The app can create a downloadable patient report with result, input values and advice."),
+    ]
+    for col, (value, title, desc) in zip([c1, c2, c3, c4], features):
         with col:
             st.markdown(f"""
-            <div class="metric-tile">
-              <div class="val">{val}</div>
-              <div class="lbl">{lbl}</div>
+            <div class="feature-card">
+              <div class="feature-value">{value}</div>
+              <div class="feature-title">{title}</div>
+              <div class="feature-desc">{desc}</div>
             </div>
             """, unsafe_allow_html=True)
 
     st.markdown("---")
-    st.info("Please log in first. Demo username: admin. Click Send OTP on the login page.")
+    st.info("Click Get Started to open the login page. Demo login: admin / 1234, or OTP using admin@gmail.com / 9999999999.")
 
 # ==============================
 # LOGIN PAGE WITH OTP
 # ==============================
 elif menu == "🔐 Login":
     st.markdown('<div class="accent-line"></div>', unsafe_allow_html=True)
-    st.markdown("## Login with Email or Phone OTP")
-    st.markdown("Enter your registered email ID or phone number, generate OTP, and verify it to login.")
+    st.markdown("## Login")
+    st.markdown("You can login using either your password or OTP.")
 
-    col_l, col_r = st.columns([1, 1])
+    tab_password, tab_otp = st.tabs(["Password Login", "OTP Login"])
 
-    with col_l:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
+    with tab_password:
+        col_l, col_r = st.columns([1, 1])
+        with col_l:
+            login_user = st.text_input("Username", placeholder="Example: admin", key="password_login_user")
+            login_password = st.text_input("Password", type="password", placeholder="Enter password", key="password_login_pass")
 
-        login_identifier = st.text_input(
-            "Email ID or Phone Number",
-            value=st.session_state.login_identifier,
-            placeholder="Example: admin@gmail.com or 9999999999",
-            key="login_identifier_input"
-        )
-
-        if st.button("Send / Generate OTP", use_container_width=True):
-            username_found, user_data = find_user_by_email_or_phone(login_identifier)
-
-            if user_data:
-                st.session_state.login_identifier = login_identifier.strip()
-                st.session_state.login_username = username_found
-                st.session_state.login_otp = generate_otp()
-                st.session_state.otp_sent = True
-                st.rerun()
-            else:
-                st.session_state.otp_sent = False
-                st.session_state.login_otp = None
-                st.session_state.login_username = None
-                st.error("No account found with this email ID or phone number. Please sign up first.")
-
-        if st.session_state.otp_sent and st.session_state.login_otp:
-            contact_type = "email ID" if "@" in st.session_state.login_identifier else "phone number"
-            st.success(f"OTP generated for your registered {contact_type}.")
-            st.info(f"Demo OTP for testing: {st.session_state.login_otp}")
-            st.caption("In a real app, this OTP will be sent through an email/SMS service. For this project demo, it is shown here.")
-
-            otp_input = st.text_input("Enter OTP", placeholder="Enter 6-digit OTP", key="otp_input")
-
-            if st.button("Verify OTP and Login →", use_container_width=True):
-                if otp_input.strip() == str(st.session_state.login_otp):
-                    db = st.session_state.users_db
-                    user_data = db[st.session_state.login_username]
-
+            if st.button("Login with Password →", use_container_width=True):
+                db = st.session_state.users_db
+                if login_user in db and str(db[login_user].get("password", "")) == login_password:
+                    user_data = db[login_user]
                     st.session_state.logged_in = True
-                    st.session_state.current_user = st.session_state.login_username
+                    st.session_state.current_user = login_user
                     st.session_state.otp_sent = False
                     st.session_state.login_otp = None
 
@@ -619,22 +647,83 @@ elif menu == "🔐 Login":
                     st.success(f"Welcome, {user_data.get('full_name', 'User')}!")
                     st.rerun()
                 else:
-                    st.error("Invalid OTP. Please enter the same OTP shown above.")
+                    st.error("Invalid username or password.")
+        with col_r:
+            st.markdown("""
+            <div class="card">
+              <h4>Password Login</h4>
+              <p>Use your registered username and password to access the app.</p>
+              <p><b>Demo username:</b> admin<br><b>Demo password:</b> 1234</p>
+            </div>
+            """, unsafe_allow_html=True)
 
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown("New user? Open **Sign Up** from the sidebar.")
-        st.markdown('</div>', unsafe_allow_html=True)
+    with tab_otp:
+        col_l, col_r = st.columns([1, 1])
+        with col_l:
+            login_identifier = st.text_input(
+                "Email ID or Phone Number",
+                value=st.session_state.login_identifier,
+                placeholder="Example: admin@gmail.com or 9999999999",
+                key="login_identifier_input"
+            )
 
-    with col_r:
-        st.markdown("""
-        <div class="card">
-          <h4>OTP Login</h4>
-          <p>You can login using your registered email ID or phone number.</p>
-          <p>For project demo testing, the OTP is shown on the screen.</p>
-          <p>For a real app, connect SMTP email service or SMS API like Twilio/Fast2SMS.</p>
-          <p><b>Demo email:</b> admin@gmail.com<br><b>Demo phone:</b> 9999999999</p>
-        </div>
-        """, unsafe_allow_html=True)
+            if st.button("Send / Generate OTP", use_container_width=True):
+                username_found, user_data = find_user_by_email_or_phone(login_identifier)
+
+                if user_data:
+                    st.session_state.login_identifier = login_identifier.strip()
+                    st.session_state.login_username = username_found
+                    st.session_state.login_otp = generate_otp()
+                    st.session_state.otp_sent = True
+                    st.rerun()
+                else:
+                    st.session_state.otp_sent = False
+                    st.session_state.login_otp = None
+                    st.session_state.login_username = None
+                    st.error("No account found with this email ID or phone number. Please sign up first.")
+
+            if st.session_state.otp_sent and st.session_state.login_otp:
+                contact_type = "email ID" if "@" in st.session_state.login_identifier else "phone number"
+                st.success(f"OTP generated for your registered {contact_type}.")
+                st.info(f"Demo OTP for testing: {st.session_state.login_otp}")
+                st.caption("For a real app, connect an email/SMS service. For this project demo, the OTP is shown here.")
+
+                otp_input = st.text_input("Enter OTP", placeholder="Enter 6-digit OTP", key="otp_input")
+
+                if st.button("Verify OTP and Login →", use_container_width=True):
+                    if otp_input.strip() == str(st.session_state.login_otp):
+                        db = st.session_state.users_db
+                        user_data = db[st.session_state.login_username]
+
+                        st.session_state.logged_in = True
+                        st.session_state.current_user = st.session_state.login_username
+                        st.session_state.otp_sent = False
+                        st.session_state.login_otp = None
+
+                        if user_data.get("role") == "Doctor":
+                            st.session_state.selected_menu = "📋 Enroll Patient"
+                        else:
+                            st.session_state.active_patient_name = user_data.get("full_name", "")
+                            st.session_state.active_patient_id = user_data.get("patient_id", "")
+                            st.session_state.active_patient_age = user_data.get("age")
+                            st.session_state.active_patient_gender = user_data.get("gender", "")
+                            st.session_state.selected_menu = "🔬 Prediction"
+
+                        st.success(f"Welcome, {user_data.get('full_name', 'User')}!")
+                        st.rerun()
+                    else:
+                        st.error("Invalid OTP. Please enter the same OTP shown above.")
+        with col_r:
+            st.markdown("""
+            <div class="card">
+              <h4>OTP Login</h4>
+              <p>You can login using your registered email ID or phone number.</p>
+              <p>For project demo testing, the OTP is shown on the screen.</p>
+              <p><b>Demo email:</b> admin@gmail.com<br><b>Demo phone:</b> 9999999999</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+    st.markdown("New user? Open **Sign Up** from the sidebar.")
 
 # ==============================
 # SIGN UP PAGE
@@ -648,7 +737,6 @@ elif menu == "📝 Sign Up":
     col_l, col_r = st.columns([1, 1])
 
     with col_l:
-        st.markdown('<div class="card">', unsafe_allow_html=True)
 
         account_type = st.radio("Account Type", ["Patient", "Doctor"], horizontal=True)
 
@@ -674,12 +762,14 @@ elif menu == "📝 Sign Up":
 
         st.markdown("#### Login Details")
         su_username = st.text_input("Choose Username", placeholder="Example: rose123", key="su_user")
+        su_password = st.text_input("Create Password", type="password", placeholder="Minimum 4 characters", key="su_pass")
+        su_password2 = st.text_input("Confirm Password", type="password", placeholder="Re-enter password", key="su_pass2")
 
         if st.button("Create Account", use_container_width=True):
             db = st.session_state.users_db
 
-            if not su_fullname or not su_username or not su_email or not su_phone:
-                st.warning("Please fill full name, email ID, phone number and username.")
+            if not su_fullname or not su_username or not su_email or not su_phone or not su_password or not su_password2:
+                st.warning("Please fill full name, email ID, phone number, username and password.")
             elif "@" not in su_email or "." not in su_email:
                 st.error("Please enter a valid email ID.")
             elif len(clean_phone(su_phone)) < 10:
@@ -690,13 +780,17 @@ elif menu == "📝 Sign Up":
                 st.error("Username cannot contain spaces.")
             elif su_username in db:
                 st.error("Username already exists. Choose another username.")
+            elif len(su_password) < 4:
+                st.error("Password must be at least 4 characters.")
+            elif su_password != su_password2:
+                st.error("Passwords do not match.")
             elif any(str(user.get("email", "")).strip().lower() == su_email.strip().lower() for user in db.values()):
                 st.error("This email ID is already registered.")
             elif any(clean_phone(str(user.get("phone", ""))) == clean_phone(su_phone) for user in db.values()):
                 st.error("This phone number is already registered.")
             else:
                 db[su_username] = {
-                    "password": "",
+                    "password": su_password,
                     "full_name": su_fullname,
                     "role": account_type,
                     "account_type": account_type,
@@ -726,7 +820,6 @@ elif menu == "📝 Sign Up":
                 st.balloons()
                 st.rerun()
 
-        st.markdown('</div>', unsafe_allow_html=True)
 
     with col_r:
         st.markdown("""
@@ -735,7 +828,7 @@ elif menu == "📝 Sign Up":
           <ul>
             <li>Both Doctor and Patient accounts can be created.</li>
             <li>Email ID, phone number and username must be unique.</li>
-            <li>OTP login will work with registered email ID or phone number.</li>
+            <li>Password login and OTP login are both available.</li>
             <li>After sign up, the user will move directly to the correct page.</li>
             <li>Patients will move to the Prediction page.</li>
             <li>Doctors will move to the Patient Enrollment page.</li>
@@ -743,11 +836,10 @@ elif menu == "📝 Sign Up":
         </div>
         """, unsafe_allow_html=True)
 
-        st.markdown('<div class="card"><h4>Registered Users</h4>', unsafe_allow_html=True)
-        for uname, udata in st.session_state.users_db.items():
-            st.markdown(f"**{udata['full_name']}**  \n`{uname}` · {udata.get('role', 'User')}  \nEmail: `{udata.get('email', 'Not added')}`  \nPhone: `{udata.get('phone', 'Not added')}`")
-            st.divider()
-        st.markdown('</div>', unsafe_allow_html=True)
+        with st.expander("Registered Users", expanded=False):
+            for uname, udata in st.session_state.users_db.items():
+                st.markdown(f"**{udata['full_name']}**  \n`{uname}` · {udata.get('role', 'User')}  \nEmail: `{udata.get('email', 'Not added')}`  \nPhone: `{udata.get('phone', 'Not added')}`")
+                st.divider()
 
 # ==============================
 # ENROLL PATIENT PAGE
@@ -768,7 +860,6 @@ elif menu == "📋 Enroll Patient":
             col1, col2 = st.columns([1, 1])
 
             with col1:
-                st.markdown('<div class="card">', unsafe_allow_html=True)
                 st.markdown("#### Patient Details")
                 p_name = st.text_input("Patient Full Name", placeholder="Example: Ramesh Kumar")
                 p_id = st.text_input("Patient ID", placeholder="Example: PT-20260001")
@@ -776,10 +867,8 @@ elif menu == "📋 Enroll Patient":
                 p_gender = st.selectbox("Gender", ["Male", "Female", "Other"])
                 p_contact = st.text_input("Contact Number", placeholder="+91 XXXXX XXXXX")
                 p_addr = st.text_area("Address", placeholder="City, State", height=70)
-                st.markdown('</div>', unsafe_allow_html=True)
-
+        
             with col2:
-                st.markdown('<div class="card">', unsafe_allow_html=True)
                 st.markdown("#### Patient Photo")
                 photo = st.file_uploader("Upload Photo (JPG / PNG)", type=["jpg", "jpeg", "png"])
 
@@ -801,8 +890,8 @@ elif menu == "📋 Enroll Patient":
                     <div style='text-align:center; margin-top:0.5rem;'>
                       <img src="data:image/png;base64,{b64}"
                            style="border-radius:14px; width:200px; height:200px;
-                           object-fit:cover; border:3px solid #7C3AED;
-                           box-shadow:0 4px 20px rgba(124,58,237,0.35);" />
+                           object-fit:cover; border:3px solid #0F766E;
+                           box-shadow:0 4px 20px rgba(15,118,110,0.35);" />
                       <div style='font-size:0.75rem; margin-top:0.5rem; opacity:0.6;'>Photo Preview</div>
                     </div>
                     """, unsafe_allow_html=True)
@@ -810,8 +899,7 @@ elif menu == "📋 Enroll Patient":
                     st.info("No photo uploaded.")
 
                 p_notes = st.text_area("Medical Notes", height=80, placeholder="Optional notes")
-                st.markdown('</div>', unsafe_allow_html=True)
-
+        
             if st.button("Enroll Patient and Open Prediction"):
                 if not p_name or not p_id:
                     st.warning("Please enter Patient Name and Patient ID.")
@@ -867,31 +955,27 @@ elif menu == "🔬 Prediction":
                 <div style='text-align:right;'>
                   <img src="data:image/png;base64,{st.session_state.patient_photo}"
                        style="border-radius:12px; width:72px; height:72px;
-                       object-fit:cover; border:2px solid #7C3AED;" />
+                       object-fit:cover; border:2px solid #0F766E;" />
                 </div>
                 """, unsafe_allow_html=True)
 
         col1, col2 = st.columns(2)
 
         with col1:
-            st.markdown('<div class="card">', unsafe_allow_html=True)
             st.markdown("##### Basic Health Values")
             preg = st.number_input("Pregnancies", 0, 20, 1)
             glucose = st.number_input("Glucose (mg/dL)", 50, 200, 120)
             bp = st.number_input("Blood Pressure (mm Hg)", 30, 120, 70)
             skin = st.number_input("Skin Thickness (mm)", 0, 100, 20)
-            st.markdown('</div>', unsafe_allow_html=True)
-
+    
         with col2:
-            st.markdown('<div class="card">', unsafe_allow_html=True)
             st.markdown("##### Body and Family Health Values")
             insulin = st.number_input("Insulin (μU/mL)", 0, 300, 100)
             bmi = st.number_input("BMI (kg/m²)", 10.0, 60.0, 25.0)
             dpf = st.number_input("Diabetes Pedigree Function", 0.0, 3.0, 0.5)
             default_age = int(st.session_state.active_patient_age) if st.session_state.active_patient_age else 30
             age = st.number_input("Age (years)", 1, 100, default_age)
-            st.markdown('</div>', unsafe_allow_html=True)
-
+    
         if st.button("Run Prediction"):
             input_raw = pd.DataFrame({
                 'Pregnancies': [preg],
