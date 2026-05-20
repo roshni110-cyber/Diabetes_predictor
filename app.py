@@ -16,6 +16,7 @@ import tempfile
 import os
 import random
 import re
+import json
 
 # ==============================
 # PAGE CONFIG
@@ -50,21 +51,64 @@ for key, value in default_values.items():
     if key not in st.session_state:
         st.session_state[key] = value
 
-# Demo in-memory user store.
-# For a real project, use a secure database and email/SMS OTP service.
-if "users_db" not in st.session_state:
-    st.session_state.users_db = {
-        "admin": {
-            "password": "1234",
-            "full_name": "Administrator",
-            "role": "Doctor",
-            "account_type": "Doctor",
-            "email": "admin@gmail.com",
-            "phone": "9999999999",
-            "specialization": "General Physician",
-            "license": "DEMO-ADMIN"
-        }
+# ==============================
+# SIMPLE LOCAL STORAGE
+# ==============================
+# This keeps users and enrolled patients after page refresh.
+# For a real app, replace this JSON storage with a proper database.
+DATA_FILE = "glucotrack_data.json"
+
+def load_local_data():
+    default_data = {
+        "users_db": {
+            "admin": {
+                "password": "1234",
+                "full_name": "Administrator",
+                "role": "Doctor",
+                "account_type": "Doctor",
+                "email": "admin@gmail.com",
+                "phone": "9999999999",
+                "specialization": "General Physician",
+                "license": "DEMO-ADMIN"
+            }
+        },
+        "patients_db": {}
     }
+    try:
+        if os.path.exists(DATA_FILE):
+            with open(DATA_FILE, "r", encoding="utf-8") as f:
+                saved = json.load(f)
+            default_data["users_db"].update(saved.get("users_db", {}))
+            default_data["patients_db"].update(saved.get("patients_db", {}))
+    except Exception:
+        pass
+    return default_data
+
+def save_local_data():
+    try:
+        with open(DATA_FILE, "w", encoding="utf-8") as f:
+            json.dump({
+                "users_db": st.session_state.users_db,
+                "patients_db": st.session_state.patients_db
+            }, f, indent=2)
+    except Exception:
+        pass
+
+local_data = load_local_data()
+st.session_state.users_db = local_data["users_db"]
+st.session_state.patients_db = local_data["patients_db"]
+
+# Restore login on browser refresh for this demo app.
+try:
+    remembered_user = st.query_params.get("user", None)
+    if remembered_user and remembered_user in st.session_state.users_db and not st.session_state.logged_in:
+        st.session_state.logged_in = True
+        st.session_state.current_user = remembered_user
+        if st.session_state.selected_menu == "🏠 Welcome":
+            role = st.session_state.users_db[remembered_user].get("role", "Patient")
+            st.session_state.selected_menu = "👥 Patient Details" if role == "Doctor" else "🔬 Prediction"
+except Exception:
+    pass
 
 # ==============================
 # THEME CSS
@@ -412,6 +456,35 @@ def apply_theme(theme):
     section[data-testid="stSidebar"] div[role="radiogroup"] label[data-baseweb] {{
         background: transparent !important;
     }}
+
+
+    .welcome-hero-center {
+        max-width: 980px;
+        margin: 0 auto;
+        text-align: center;
+        padding: 2.5rem 1rem 1rem 1rem;
+    }
+    .welcome-text-area {
+        max-width: 760px;
+        margin: 0 auto 1.5rem auto;
+    }
+    .welcome-image-card {
+        max-width: 760px;
+        height: 330px;
+        margin: 1.6rem auto 0 auto;
+        border-radius: 26px;
+        overflow: hidden;
+        border: 1px solid {border};
+        box-shadow: 0 24px 70px rgba(15,23,42,0.16);
+        background: linear-gradient(135deg, {accent}, {accent2});
+    }
+    .welcome-image-card img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        opacity: 0.94;
+    }
 
     </style>
     """, unsafe_allow_html=True)
@@ -770,6 +843,51 @@ def generate_patient_report(patient_name, patient_id, result_text, patient_data,
     c.save()
     return file_path
 
+
+def get_medical_advice(glucose, bmi, bp, insulin, prediction_value):
+    advice = []
+    status = "Healthy Advice"
+    level = "success"
+    if prediction_value == 1:
+        status = "High Risk Advice"
+        level = "warning"
+        advice.append("The model shows high diabetes risk. The patient should consult a doctor or diabetologist for confirmatory testing.")
+    if glucose >= 126:
+        status = "High Glucose Advice"
+        level = "warning"
+        advice.append("Glucose is in a high range. Reduce sweet drinks, sweets, refined carbs and monitor fasting/post-meal glucose.")
+    elif 100 <= glucose < 126:
+        status = "Prediabetes Advice"
+        level = "info"
+        advice.append("Glucose is in the prediabetes range. Improve diet, exercise regularly and repeat glucose testing after medical guidance.")
+    else:
+        advice.append("Glucose is currently in a safer range. Continue routine monitoring and a balanced lifestyle.")
+
+    if bmi >= 30:
+        advice.append("BMI is in the obesity range. A structured weight management plan and daily physical activity are recommended.")
+    elif bmi >= 25:
+        advice.append("BMI is in the overweight range. Focus on portion control, walking and reducing processed food.")
+
+    if bp >= 90:
+        advice.append("Blood pressure value is high. Salt intake should be controlled and blood pressure should be checked regularly.")
+
+    if insulin > 200:
+        advice.append("Insulin value is high. The doctor should review insulin resistance risk and related metabolic markers.")
+
+    if not advice:
+        advice.append("Maintain a healthy diet, regular exercise, good sleep and yearly health checkups.")
+    return status, level, advice
+
+def show_medical_advice(glucose, bmi, bp, insulin, prediction_value):
+    status, level, advice = get_medical_advice(glucose, bmi, bp, insulin, prediction_value)
+    message = "**" + status + ":**\n" + "\n".join([f"- {item}" for item in advice])
+    if level == "warning":
+        st.warning(message)
+    elif level == "info":
+        st.info(message)
+    else:
+        st.success(message)
+
 # ==============================
 # SIDEBAR / NAVIGATION
 # ==============================
@@ -796,6 +914,7 @@ if show_sidebar:
 
         if current_role == "Doctor":
             menu_options = [
+                "👥 Patient Details",
                 "📋 Enroll Patient",
                 "🔬 Prediction",
                 "📊 Visualization",
@@ -835,6 +954,35 @@ else:
     div[data-testid="stSidebarCollapsedControl"] {
         display: none !important;
     }
+
+    .welcome-hero-center {
+        max-width: 980px;
+        margin: 0 auto;
+        text-align: center;
+        padding: 2.5rem 1rem 1rem 1rem;
+    }
+    .welcome-text-area {
+        max-width: 760px;
+        margin: 0 auto 1.5rem auto;
+    }
+    .welcome-image-card {
+        max-width: 760px;
+        height: 330px;
+        margin: 1.6rem auto 0 auto;
+        border-radius: 26px;
+        overflow: hidden;
+        border: 1px solid {border};
+        box-shadow: 0 24px 70px rgba(15,23,42,0.16);
+        background: linear-gradient(135deg, {accent}, {accent2});
+    }
+    .welcome-image-card img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        opacity: 0.94;
+    }
+
     </style>
     """, unsafe_allow_html=True)
 
@@ -845,25 +993,24 @@ apply_theme(st.session_state.theme)
 # ==============================
 if menu == "🏠 Welcome":
     st.markdown("""
-    <div class="welcome-hero">
-      <div class="brand-pill">🩺 GLUCOTRACK</div>
-      <div class="hero-title">Smart Diabetes Risk Prediction</div>
-      <div class="hero-sub">A clean, secure and professional dashboard for patient risk assessment, visual insights and PDF report generation.</div>
-      <div class="hero-actions">Use the Get Started button to continue with login or account creation.</div>
+    <div class="welcome-hero-center">
+      <div class="welcome-text-area">
+        <div class="brand-pill">🩺 GLUCOTRACK</div>
+        <div class="hero-title">Smarter Diabetes Risk Screening</div>
+        <div class="hero-sub">A professional machine learning dashboard for quick diabetes risk prediction, patient visualization and report generation.</div>
+      </div>
+      <div class="welcome-image-card">
+        <img src="https://images.unsplash.com/photo-1576091160550-2173dba999ef?auto=format&fit=crop&w=900&q=80" alt="Diabetes healthcare" />
+      </div>
     </div>
     """, unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
-    col_a, col_b, col_c = st.columns([1, 1, 4])
-    with col_a:
+    c1, c2, c3 = st.columns([2, 1, 2])
+    with c2:
         if st.button("Get Started →", use_container_width=True):
             st.session_state.selected_menu = "🔐 Login"
             st.rerun()
-    with col_b:
-        if not st.session_state.get("logged_in", False):
-            if st.button("Create Account", use_container_width=True):
-                st.session_state.selected_menu = "📝 Sign Up"
-                st.rerun()
 
 # ==============================
 # LOGIN PAGE
@@ -885,9 +1032,10 @@ elif menu == "🔐 Login":
                 user_data = db[login_user]
                 st.session_state.logged_in = True
                 st.session_state.current_user = login_user
+                st.query_params["user"] = login_user
 
                 if user_data.get("role") == "Doctor":
-                    st.session_state.selected_menu = "📋 Enroll Patient"
+                    st.session_state.selected_menu = "👥 Patient Details"
                 else:
                     st.session_state.active_patient_name = user_data.get("full_name", "")
                     st.session_state.active_patient_id = user_data.get("patient_id", "")
@@ -910,7 +1058,7 @@ elif menu == "📝 Sign Up":
     st.markdown("Create a Doctor or Patient account. After sign up, the correct page will open automatically.")
     st.markdown("<br>", unsafe_allow_html=True)
 
-    col_l, col_r = st.columns([1, 1])
+    col_l = st.container()
 
     with col_l:
 
@@ -981,11 +1129,13 @@ elif menu == "📝 Sign Up":
                 }
 
                 st.session_state.users_db = db
+                save_local_data()
                 st.session_state.logged_in = True
                 st.session_state.current_user = su_username
+                st.query_params["user"] = su_username
 
                 if account_type == "Doctor":
-                    st.session_state.selected_menu = "📋 Enroll Patient"
+                    st.session_state.selected_menu = "👥 Patient Details"
                 else:
                     st.session_state.active_patient_name = su_fullname
                     st.session_state.active_patient_id = ""
@@ -998,27 +1148,60 @@ elif menu == "📝 Sign Up":
                 st.balloons()
                 st.rerun()
 
+# ==============================
+# PATIENT DETAILS PAGE
+# ==============================
+elif menu == "👥 Patient Details":
+    if not st.session_state.logged_in:
+        st.warning("Please login first.")
+    else:
+        current = get_current_user_data()
+        if current.get("role") != "Doctor" and current.get("role") != "Admin":
+            st.warning("Only doctors can view enrolled patient details.")
+        else:
+            doctor_key = st.session_state.current_user
+            doctor_patients = st.session_state.patients_db.get(doctor_key, {})
+            st.markdown('<div class="accent-line"></div>', unsafe_allow_html=True)
+            st.markdown("## Patient Details")
+            st.markdown("These are the patients enrolled by the logged-in doctor only.")
 
-    with col_r:
-        st.markdown("""
-        <div class="card">
-          <h4>Sign Up Rules</h4>
-          <ul>
-            <li>Both Doctor and Patient accounts can be created.</li>
-            <li>Email ID, phone number and username must be unique.</li>
-            <li>Password login is available for registered users.</li>
-            <li>After sign up, the user will move directly to the correct page.</li>
-            <li>Patients will move to the Prediction page for self-check.</li>
-            <li>Patient ID is required only when a doctor enrolls a patient.</li>
-            <li>Doctors will move to the Patient Enrollment page.</li>
-          </ul>
-        </div>
-        """, unsafe_allow_html=True)
+            if not doctor_patients:
+                st.info("No patients enrolled yet. Add a patient from the Enroll Patient page.")
+                if st.button("Enroll New Patient"):
+                    st.session_state.selected_menu = "📋 Enroll Patient"
+                    st.rerun()
+            else:
+                search_text = st.text_input("Search by Patient ID or Name", placeholder="Example: PT-001 or Ramesh")
+                rows = []
+                for pid, pdata in doctor_patients.items():
+                    if search_text.strip():
+                        q = search_text.strip().lower()
+                        if q not in pid.lower() and q not in pdata.get("name", "").lower():
+                            continue
+                    rows.append({
+                        "Patient ID": pdata.get("patient_id", pid),
+                        "Name": pdata.get("name", ""),
+                        "Age": pdata.get("age", ""),
+                        "Gender": pdata.get("gender", ""),
+                        "Contact": pdata.get("contact", ""),
+                        "Notes": pdata.get("notes", "")
+                    })
 
-        with st.expander("Registered Users", expanded=False):
-            for uname, udata in st.session_state.users_db.items():
-                st.markdown(f"**{udata['full_name']}**  \n`{uname}` · {udata.get('role', 'User')}  \nEmail: `{udata.get('email', 'Not added')}`  \nPhone: `{udata.get('phone', 'Not added')}`")
-                st.divider()
+                if rows:
+                    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+                    selected_id = st.selectbox("Select Patient ID to open", [r["Patient ID"] for r in rows])
+                    if st.button("Open Selected Patient in Prediction", use_container_width=True):
+                        saved_patient = doctor_patients.get(selected_id)
+                        if saved_patient:
+                            st.session_state.active_patient_name = saved_patient.get("name", "")
+                            st.session_state.active_patient_id = saved_patient.get("patient_id", "")
+                            st.session_state.active_patient_age = saved_patient.get("age")
+                            st.session_state.active_patient_gender = saved_patient.get("gender", "")
+                            st.session_state.patient_photo = saved_patient.get("photo")
+                            st.session_state.selected_menu = "🔬 Prediction"
+                            st.rerun()
+                else:
+                    st.warning("No matching patient found.")
 
 # ==============================
 # ENROLL PATIENT PAGE
@@ -1120,6 +1303,7 @@ elif menu == "📋 Enroll Patient":
                         "photo": uploaded_photo_b64,
                     }
                     st.session_state.patients_db[doctor_key][clean_patient_id] = patient_record
+                    save_local_data()
                     st.session_state.active_patient_name = p_name
                     st.session_state.active_patient_id = clean_patient_id
                     st.session_state.active_patient_age = p_age
@@ -1408,7 +1592,7 @@ elif menu == "🔬 Prediction":
             else:
                 patient_id_report = "Self Check"
 
-            if st.button("Generate Professional Report"):
+            if st.button("Generate Report"):
                 report_path = generate_patient_report(
                     patient_name_report,
                     patient_id_report,
@@ -1437,7 +1621,7 @@ elif menu == "🔬 Prediction":
                 pdf_file_name = f"{patient_name_report}_professional_report.pdf"
 
                 st.download_button(
-                    label="Download Professional PDF Report",
+                    label="Download PDF Report",
                     data=pdf_bytes,
                     file_name=pdf_file_name,
                     mime="application/pdf"
@@ -1531,21 +1715,23 @@ elif menu == "📊 Visualization":
         ])
 
         with tab1:
-            st.markdown("#### Glucose Level")
-            fig, ax = plt.subplots(figsize=(4.8, 2.3))
-            ax.barh(["Patient"], [glucose], height=0.35)
-            ax.axvspan(50, 99, alpha=0.08, label="Normal")
-            ax.axvspan(100, 125, alpha=0.08, label="Prediabetes")
-            ax.axvspan(126, 200, alpha=0.08, label="High")
-            ax.axvline(100, linestyle="--", linewidth=1)
-            ax.axvline(126, linestyle="--", linewidth=1)
-            ax.set_xlim(50, 200)
-            ax.set_xlabel("mg/dL")
-            ax.set_title("Glucose Status")
-            ax.legend(fontsize=7, loc="upper right")
+            st.markdown("#### Glucose Risk Meter")
+            fig, ax = plt.subplots(figsize=(5.0, 1.9))
+            ax.set_xlim(70, 200)
+            ax.set_ylim(0, 1)
+            ax.hlines(0.5, 70, 99, linewidth=10, alpha=0.35, label="Normal")
+            ax.hlines(0.5, 100, 125, linewidth=10, alpha=0.35, label="Prediabetes")
+            ax.hlines(0.5, 126, 200, linewidth=10, alpha=0.35, label="High")
+            ax.scatter([glucose], [0.5], s=220, marker="v", zorder=5)
+            ax.text(glucose, 0.72, f"{glucose} mg/dL", ha="center", fontsize=10, fontweight="bold")
+            ax.set_yticks([])
+            ax.set_xlabel("Glucose range")
+            ax.set_title("Doctor-Friendly Glucose Range Meter", fontsize=11)
+            ax.spines[["left", "right", "top"]].set_visible(False)
+            ax.legend(fontsize=7, loc="lower center", ncol=3, bbox_to_anchor=(0.5, -0.55))
             fig.tight_layout()
             st.pyplot(fig, use_container_width=False)
-            st.caption("Shows the patient glucose value against normal, prediabetes and high ranges.")
+            st.caption("The marker shows exactly where the patient's glucose falls: normal, prediabetic or high.")
 
         with tab2:
             st.markdown("#### BMI Level")
@@ -1616,32 +1802,7 @@ elif menu == "📊 Visualization":
 
         st.markdown("### Medical Advice")
 
-        if glucose >= 126 or prediction_value == 1:
-            st.warning("""
-            **Diabetes Risk Advice:**
-            - Consult a doctor or diabetes specialist.
-            - Avoid excess sugar, sweet drinks and junk food.
-            - Walk for at least 30 minutes daily.
-            - Monitor glucose levels regularly.
-            - Follow a balanced diet with vegetables, protein and fiber-rich food.
-            """)
-        elif 100 <= glucose < 126:
-            st.info("""
-            **Prediabetes Advice:**
-            - Improve daily lifestyle habits.
-            - Maintain a healthy body weight.
-            - Exercise regularly.
-            - Reduce refined sugar, white rice and processed food.
-            - Repeat glucose testing after medical consultation.
-            """)
-        else:
-            st.success("""
-            **Healthy Advice:**
-            - Continue a balanced diet.
-            - Stay physically active.
-            - Go for routine health checkups.
-            - Monitor BMI and glucose level regularly.
-            """)
+        show_medical_advice(glucose, bmi, bp, insulin, prediction_value)
 
         st.markdown("---")
         st.markdown("## Patient Report")
@@ -1655,7 +1816,7 @@ elif menu == "📊 Visualization":
             value=st.session_state.active_patient_id or "PT-001"
         )
 
-        if st.button("Generate Professional Report"):
+        if st.button("Generate Report"):
             report_path = generate_patient_report(
                 patient_name_report,
                 patient_id_report,
@@ -1684,7 +1845,7 @@ elif menu == "📊 Visualization":
             pdf_file_name = f"{patient_name_report}_professional_report.pdf"
 
             st.download_button(
-                label="Download Professional PDF Report",
+                label="Download PDF Report",
                 data=pdf_bytes,
                 file_name=pdf_file_name,
                 mime="application/pdf"
@@ -1773,6 +1934,10 @@ if st.session_state.get("logged_in", False):
     if st.sidebar.button("Logout", use_container_width=True):
         st.session_state.logged_in = False
         st.session_state.current_user = None
+        try:
+            st.query_params.clear()
+        except Exception:
+            pass
         st.session_state.patient_photo = None
         st.session_state.selected_menu = "🏠 Welcome"
         st.session_state.active_patient_name = ""
