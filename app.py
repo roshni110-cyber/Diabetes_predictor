@@ -43,6 +43,7 @@ default_values = {
     "active_patient_id": "",
     "active_patient_age": None,
     "active_patient_gender": "",
+    "patients_db": {},
 }
 
 for key, value in default_values.items():
@@ -612,7 +613,10 @@ def generate_patient_report(patient_name, patient_id, result_text, patient_data,
     c.setFont("Helvetica", 10)
     c.setFillColor(text_muted)
     c.drawString(65, height - 170, f"Patient Name: {patient_name}")
-    c.drawString(65, height - 188, f"Patient ID: {patient_id}")
+    if patient_id and str(patient_id) != "Self Check":
+        c.drawString(65, height - 188, f"Patient ID: {patient_id}")
+    else:
+        c.drawString(65, height - 188, "Patient Type: Self Check")
     c.drawString(65, height - 206, f"Report Created By: {report_for}")
 
     c.setFillColor(result_color)
@@ -922,7 +926,8 @@ elif menu == "📝 Sign Up":
             su_gender = None
             su_patient_id = None
         else:
-            su_patient_id = st.text_input("Patient ID", placeholder="Example: PT-20260001")
+            # A self-check patient does not need a Patient ID.
+            su_patient_id = ""
             su_age = st.number_input("Age", 1, 120, 25, key="su_age")
             su_gender = st.selectbox("Gender", ["Female", "Male", "Other"], key="su_gender")
             su_specialization = None
@@ -983,7 +988,8 @@ elif menu == "📝 Sign Up":
                     st.session_state.selected_menu = "📋 Enroll Patient"
                 else:
                     st.session_state.active_patient_name = su_fullname
-                    st.session_state.active_patient_id = su_patient_id
+                    st.session_state.active_patient_id = ""
+                    st.session_state.patient_photo = None
                     st.session_state.active_patient_age = su_age
                     st.session_state.active_patient_gender = su_gender
                     st.session_state.selected_menu = "🔬 Prediction"
@@ -1002,7 +1008,8 @@ elif menu == "📝 Sign Up":
             <li>Email ID, phone number and username must be unique.</li>
             <li>Password login is available for registered users.</li>
             <li>After sign up, the user will move directly to the correct page.</li>
-            <li>Patients will move to the Prediction page.</li>
+            <li>Patients will move to the Prediction page for self-check.</li>
+            <li>Patient ID is required only when a doctor enrolls a patient.</li>
             <li>Doctors will move to the Patient Enrollment page.</li>
           </ul>
         </div>
@@ -1029,6 +1036,29 @@ elif menu == "📋 Enroll Patient":
             st.markdown("Create a patient record before running the diabetes prediction.")
             st.markdown("<br>", unsafe_allow_html=True)
 
+            doctor_key = st.session_state.current_user
+            if doctor_key not in st.session_state.patients_db:
+                st.session_state.patients_db[doctor_key] = {}
+
+            st.markdown("### Open Existing Patient")
+            lookup_id = st.text_input("Enter Patient ID to open saved patient", placeholder="Example: PT-20260001", key="lookup_patient_id")
+            if st.button("Open Patient by ID", use_container_width=True):
+                saved_patient = st.session_state.patients_db.get(doctor_key, {}).get(lookup_id.strip())
+                if saved_patient:
+                    st.session_state.active_patient_name = saved_patient.get("name", "")
+                    st.session_state.active_patient_id = saved_patient.get("patient_id", "")
+                    st.session_state.active_patient_age = saved_patient.get("age")
+                    st.session_state.active_patient_gender = saved_patient.get("gender", "")
+                    st.session_state.patient_photo = saved_patient.get("photo")
+                    st.session_state.selected_menu = "🔬 Prediction"
+                    st.success(f"Patient {saved_patient.get('name', '')} opened successfully.")
+                    st.rerun()
+                else:
+                    st.error("No patient found with this Patient ID for this doctor.")
+
+            st.markdown("---")
+            st.markdown("### Enroll New Patient")
+
             col1, col2 = st.columns([1, 1])
 
             with col1:
@@ -1039,11 +1069,12 @@ elif menu == "📋 Enroll Patient":
                 p_gender = st.selectbox("Gender", ["Male", "Female", "Other"])
                 p_contact = st.text_input("Contact Number", placeholder="+91 XXXXX XXXXX")
                 p_addr = st.text_area("Address", placeholder="City, State", height=70)
-        
+
             with col2:
                 st.markdown("#### Patient Photo")
                 photo = st.file_uploader("Upload Photo (JPG / PNG)", type=["jpg", "jpeg", "png"])
 
+                uploaded_photo_b64 = None
                 if photo:
                     img = Image.open(photo)
                     w, h = img.size
@@ -1055,12 +1086,11 @@ elif menu == "📋 Enroll Patient":
 
                     buf = io.BytesIO()
                     img_resized.save(buf, format="PNG")
-                    b64 = base64.b64encode(buf.getvalue()).decode()
-                    st.session_state.patient_photo = b64
+                    uploaded_photo_b64 = base64.b64encode(buf.getvalue()).decode()
 
                     st.markdown(f"""
                     <div style='text-align:center; margin-top:0.5rem;'>
-                      <img src="data:image/png;base64,{b64}"
+                      <img src="data:image/png;base64,{uploaded_photo_b64}"
                            style="border-radius:14px; width:200px; height:200px;
                            object-fit:cover; border:3px solid #0F766E;
                            box-shadow:0 4px 20px rgba(15,118,110,0.35);" />
@@ -1071,15 +1101,30 @@ elif menu == "📋 Enroll Patient":
                     st.info("No photo uploaded.")
 
                 p_notes = st.text_area("Medical Notes", height=80, placeholder="Optional notes")
-        
+
             if st.button("Enroll Patient and Open Prediction"):
-                if not p_name or not p_id:
+                clean_patient_id = p_id.strip()
+                if not p_name or not clean_patient_id:
                     st.warning("Please enter Patient Name and Patient ID.")
+                elif clean_patient_id in st.session_state.patients_db.get(doctor_key, {}):
+                    st.error("This Patient ID already exists for this doctor. Please use a unique Patient ID or open the existing patient by ID.")
                 else:
+                    patient_record = {
+                        "name": p_name,
+                        "patient_id": clean_patient_id,
+                        "age": p_age,
+                        "gender": p_gender,
+                        "contact": p_contact,
+                        "address": p_addr,
+                        "notes": p_notes,
+                        "photo": uploaded_photo_b64,
+                    }
+                    st.session_state.patients_db[doctor_key][clean_patient_id] = patient_record
                     st.session_state.active_patient_name = p_name
-                    st.session_state.active_patient_id = p_id
+                    st.session_state.active_patient_id = clean_patient_id
                     st.session_state.active_patient_age = p_age
                     st.session_state.active_patient_gender = p_gender
+                    st.session_state.patient_photo = uploaded_photo_b64
                     st.session_state.selected_menu = "🔬 Prediction"
                     st.success(f"Patient {p_name} enrolled successfully.")
                     st.rerun()
@@ -1093,9 +1138,12 @@ elif menu == "🔬 Prediction":
     else:
         current_user = get_current_user_data()
 
-        if not st.session_state.active_patient_name and current_user.get("role") == "Patient":
+        current_role = current_user.get("role", "Patient")
+
+        if not st.session_state.active_patient_name and current_role == "Patient":
             st.session_state.active_patient_name = current_user.get("full_name", "")
-            st.session_state.active_patient_id = current_user.get("patient_id", "")
+            st.session_state.active_patient_id = ""
+            st.session_state.patient_photo = None
             st.session_state.active_patient_age = current_user.get("age")
             st.session_state.active_patient_gender = current_user.get("gender", "")
 
@@ -1112,14 +1160,18 @@ elif menu == "🔬 Prediction":
                 value=st.session_state.active_patient_name or current_user.get("full_name", ""),
                 placeholder="Enter patient name"
             )
-            patient_id = st.text_input(
-                "Patient ID",
-                value=st.session_state.active_patient_id or "PT-001",
-                placeholder="Enter patient ID"
-            )
+            if current_role == "Doctor":
+                patient_id = st.text_input(
+                    "Patient ID",
+                    value=st.session_state.active_patient_id or "",
+                    placeholder="Enter patient ID"
+                )
+                st.session_state.active_patient_id = patient_id
+            else:
+                patient_id = ""
+                st.caption("Self-check mode: Patient ID is not required.")
 
             st.session_state.active_patient_name = patient_name
-            st.session_state.active_patient_id = patient_id
 
         with photo_col:
             if st.session_state.patient_photo:
@@ -1178,6 +1230,23 @@ elif menu == "🔬 Prediction":
             st.session_state.input_raw = input_raw
             st.session_state.prediction = prediction[0]
             st.session_state.probability = probability
+
+            # Save the latest checked values for the active doctor patient.
+            if current_user.get("role") == "Doctor" and st.session_state.active_patient_id:
+                doctor_key = st.session_state.current_user
+                st.session_state.patients_db.setdefault(doctor_key, {})
+                st.session_state.patients_db[doctor_key].setdefault(st.session_state.active_patient_id, {})
+                st.session_state.patients_db[doctor_key][st.session_state.active_patient_id].update({
+                    "name": st.session_state.active_patient_name,
+                    "patient_id": st.session_state.active_patient_id,
+                    "age": st.session_state.active_patient_age,
+                    "gender": st.session_state.active_patient_gender,
+                    "photo": st.session_state.patient_photo,
+                    "last_input": input_raw.to_dict("records")[0],
+                    "last_prediction": int(prediction[0]),
+                    "last_probability": probability,
+                })
+
             st.session_state.selected_menu = "📊 Visualization"
             st.rerun()
 
@@ -1188,7 +1257,10 @@ elif menu == "🔬 Prediction":
 
             st.markdown("### Prediction Result")
             st.markdown(f"**Patient Name:** {st.session_state.active_patient_name or 'Not provided'}")
-            st.markdown(f"**Patient ID:** {st.session_state.active_patient_id or 'Not provided'}")
+            if current_user.get("role") == "Doctor":
+                st.markdown(f"**Patient ID:** {st.session_state.active_patient_id or 'Not provided'}")
+            else:
+                st.markdown("**Mode:** Self-check patient report")
 
             if prediction_value == 1:
                 result_text = "High Risk of Diabetes"
@@ -1328,10 +1400,13 @@ elif menu == "🔬 Prediction":
                 "Patient Name for Report",
                 value=st.session_state.active_patient_name or "Unknown Patient"
             )
-            patient_id_report = st.text_input(
-                "Patient ID for Report",
-                value=st.session_state.active_patient_id or "PT-001"
-            )
+            if current_user.get("role") == "Doctor":
+                patient_id_report = st.text_input(
+                    "Patient ID for Report",
+                    value=st.session_state.active_patient_id or ""
+                )
+            else:
+                patient_id_report = "Self Check"
 
             if st.button("Generate Professional Report"):
                 report_path = generate_patient_report(
