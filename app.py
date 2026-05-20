@@ -71,17 +71,17 @@ if "users_db" not in st.session_state:
 def apply_theme(theme):
     is_dark = theme == "Dark"
 
-    bg = "#0B1220" if is_dark else "#F8FAFC"
-    sidebar_bg = "#111827" if is_dark else "#E0F2FE"
-    card_bg = "#172033" if is_dark else "#FFFFFF"
-    text_main = "#F8FAFC" if is_dark else "#111827"
-    text_sub = "#CBD5E1" if is_dark else "#475569"
-    text_input = "#F8FAFC" if is_dark else "#111827"
-    accent = "#0F766E"
-    accent2 = "#0284C7"
-    border = "#334155" if is_dark else "#BAE6FD"
-    input_bg = "#1E293B" if is_dark else "#FFFFFF"
-    hover_bg = "#0F766E" if is_dark else "#CFFAFE"
+    bg = "#080A1A" if is_dark else "#F4F7FB"
+    sidebar_bg = "#111036" if is_dark else "#FFFFFF"
+    card_bg = "#151A3D" if is_dark else "#FFFFFF"
+    text_main = "#F8FAFC" if is_dark else "#0F172A"
+    text_sub = "#C4CAE8" if is_dark else "#526173"
+    text_input = "#F8FAFC" if is_dark else "#0F172A"
+    accent = "#5B5FEF" if is_dark else "#1D4ED8"
+    accent2 = "#14B8A6" if is_dark else "#0F766E"
+    border = "#2D336A" if is_dark else "#D8E3F1"
+    input_bg = "#1B214A" if is_dark else "#FFFFFF"
+    hover_bg = "#262D63" if is_dark else "#EAF2FF"
 
     st.markdown(f"""
     <style>
@@ -360,6 +360,57 @@ def apply_theme(theme):
         line-height: 1.55;
         color: {text_sub} !important;
     }}
+
+
+    .welcome-hero {
+        background: linear-gradient(135deg, rgba(29,78,216,0.14), rgba(20,184,166,0.12));
+        border: 1px solid {border};
+        border-radius: 28px;
+        padding: 3rem 3.2rem;
+        box-shadow: 0 24px 70px rgba(15,23,42,0.12);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .welcome-hero:after {
+        content: "";
+        position: absolute;
+        right: -70px;
+        top: -70px;
+        width: 240px;
+        height: 240px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, {accent}, {accent2});
+        opacity: 0.14;
+    }
+
+    .brand-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.55rem;
+        padding: 0.5rem 0.9rem;
+        border-radius: 999px;
+        background: rgba(20,184,166,0.13);
+        color: {text_main} !important;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin-bottom: 1rem;
+    }
+
+    .hero-actions {
+        margin-top: 1.5rem;
+        font-size: 0.92rem;
+        color: {text_sub} !important;
+    }
+
+    section[data-testid="stSidebar"] {
+        box-shadow: 12px 0 35px rgba(15,23,42,0.08);
+    }
+
+    section[data-testid="stSidebar"] div[role="radiogroup"] label[data-baseweb] {
+        background: transparent !important;
+    }
 
     </style>
     """, unsafe_allow_html=True)
@@ -716,18 +767,25 @@ st.sidebar.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-menu_options = [
-    "🏠 Welcome",
-    "🔐 Login",
-    "📝 Sign Up",
-    "📋 Enroll Patient",
-    "🔬 Prediction",
-    "ℹ️ About"
-]
+if st.session_state.get("logged_in", False):
+    menu_options = [
+        "🏠 Welcome",
+        "📋 Enroll Patient",
+        "🔬 Prediction",
+        "ℹ️ About"
+    ]
+else:
+    menu_options = [
+        "🏠 Welcome",
+        "🔐 Login",
+        "📝 Sign Up",
+        "ℹ️ About"
+    ]
 
-default_index = 0
-if st.session_state.selected_menu in menu_options:
-    default_index = menu_options.index(st.session_state.selected_menu)
+if st.session_state.selected_menu not in menu_options:
+    st.session_state.selected_menu = "🏠 Welcome"
+
+default_index = menu_options.index(st.session_state.selected_menu)
 
 menu = st.sidebar.radio("Navigation", menu_options, index=default_index)
 st.session_state.selected_menu = menu
@@ -742,38 +800,26 @@ apply_theme(st.session_state.theme)
 # WELCOME PAGE
 # ==============================
 if menu == "🏠 Welcome":
-    st.markdown('<div class="accent-line"></div>', unsafe_allow_html=True)
-    st.markdown('<div class="hero-title">Early Detection.<br>Better Health Decisions.</div>', unsafe_allow_html=True)
-    st.markdown(
-        '<div class="hero-sub">GlucoTrack is a professional diabetes risk prediction system. It uses patient health values and a machine learning model to show a quick risk result and generate a patient report.</div>',
-        unsafe_allow_html=True
-    )
+    st.markdown("""
+    <div class="welcome-hero">
+      <div class="brand-pill">🩺 GLUCOTRACK</div>
+      <div class="hero-title">Smart Diabetes Risk Prediction</div>
+      <div class="hero-sub">A clean, secure and professional dashboard for patient risk assessment, visual insights and PDF report generation.</div>
+      <div class="hero-actions">Use the Get Started button to continue with login or account creation.</div>
+    </div>
+    """, unsafe_allow_html=True)
+
     st.markdown("<br>", unsafe_allow_html=True)
-
-    if st.button("Get Started →", use_container_width=False):
-        st.session_state.selected_menu = "🔐 Login"
-        st.rerun()
-
-    st.markdown("### Key Features")
-    c1, c2, c3, c4 = st.columns(4)
-    features = [
-        ("Fast", "Prediction", "The system gives the diabetes risk result in a few seconds after entering patient values."),
-        ("8", "Main Inputs", "It uses 8 important medical inputs such as glucose, BMI, blood pressure, insulin and age."),
-        ("OTP", "Login", "Users can log in using password or OTP with their registered email ID or phone number."),
-        ("PDF", "Report", "The app can create a downloadable patient report with result, input values and advice."),
-    ]
-    for col, (value, title, desc) in zip([c1, c2, c3, c4], features):
-        with col:
-            st.markdown(f"""
-            <div class="feature-card">
-              <div class="feature-value">{value}</div>
-              <div class="feature-title">{title}</div>
-              <div class="feature-desc">{desc}</div>
-            </div>
-            """, unsafe_allow_html=True)
-
-    st.markdown("---")
-    st.info("Click Get Started to open the login page. Demo login: admin / 1234, or OTP using admin@gmail.com / 9999999999.")
+    col_a, col_b, col_c = st.columns([1, 1, 4])
+    with col_a:
+        if st.button("Get Started →", use_container_width=True):
+            st.session_state.selected_menu = "🔐 Login"
+            st.rerun()
+    with col_b:
+        if not st.session_state.get("logged_in", False):
+            if st.button("Create Account", use_container_width=True):
+                st.session_state.selected_menu = "📝 Sign Up"
+                st.rerun()
 
 # ==============================
 # LOGIN PAGE WITH OTP
@@ -1413,6 +1459,24 @@ elif menu == "ℹ️ About":
     </div>
     """, unsafe_allow_html=True)
 
+    st.markdown("### Key Features")
+    c1, c2, c3, c4 = st.columns(4)
+    features = [
+        ("Fast", "Prediction", "The system gives the diabetes risk result within a few seconds after entering patient values. This helps in quick screening and project demonstration."),
+        ("8", "Main Inputs", "It uses 8 important medical inputs including glucose, BMI, blood pressure, insulin, age, pregnancies, skin thickness and diabetes pedigree function."),
+        ("OTP", "Login", "Users can log in with a password or OTP using their registered email ID or phone number. This makes access more flexible and secure."),
+        ("PDF", "Report", "The app creates a professional patient report with result, input values, charts and health advice. The report can be downloaded and shared."),
+    ]
+    for col, (value, title, desc) in zip([c1, c2, c3, c4], features):
+        with col:
+            st.markdown(f"""
+            <div class="feature-card">
+              <div class="feature-value">{value}</div>
+              <div class="feature-title">{title}</div>
+              <div class="feature-desc">{desc}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
 # ==============================
 # SIDEBAR LOGOUT BUTTON
 # ==============================
@@ -1423,7 +1487,7 @@ if st.session_state.get("logged_in", False):
         st.session_state.logged_in = False
         st.session_state.current_user = None
         st.session_state.patient_photo = None
-        st.session_state.selected_menu = "🔐 Login"
+        st.session_state.selected_menu = "🏠 Welcome"
         st.session_state.active_patient_name = ""
         st.session_state.active_patient_id = ""
         st.session_state.active_patient_age = None
