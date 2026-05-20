@@ -756,45 +756,65 @@ def generate_patient_report(patient_name, patient_id, result_text, patient_data,
     return file_path
 
 # ==============================
-# SIDEBAR
+# SIDEBAR / NAVIGATION
 # ==============================
-st.sidebar.markdown("""
-<div style='padding: 0.6rem 0 1rem 0;'>
-  <span style='font-size:1.5rem; font-weight:800;'>🩺 GLUCOTRACK</span><br>
-  <span style='font-size:0.75rem; opacity:0.55; letter-spacing:0.08em;'>
-      SMART HEALTH DASHBOARD
-  </span>
-</div>
-""", unsafe_allow_html=True)
+# On the first Welcome screen, the sidebar navigation is hidden.
+# After clicking Get Started, the user goes to Login and the navigation appears.
+show_sidebar = not (
+    st.session_state.selected_menu == "🏠 Welcome"
+    and not st.session_state.get("logged_in", False)
+)
 
-if st.session_state.get("logged_in", False):
-    menu_options = [
-        "🏠 Welcome",
-        "📋 Enroll Patient",
-        "🔬 Prediction",
-        "📊 Visualization",
-        "ℹ️ About"
-    ]
+if show_sidebar:
+    st.sidebar.markdown("""
+    <div style='padding: 0.6rem 0 1rem 0;'>
+      <span style='font-size:1.5rem; font-weight:800;'>🩺 GLUCOTRACK</span><br>
+      <span style='font-size:0.75rem; opacity:0.55; letter-spacing:0.08em;'>
+          SMART HEALTH DASHBOARD
+      </span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    if st.session_state.get("logged_in", False):
+        menu_options = [
+            "🏠 Welcome",
+            "📋 Enroll Patient",
+            "🔬 Prediction",
+            "📊 Visualization",
+            "ℹ️ About"
+        ]
+    else:
+        menu_options = [
+            "🏠 Welcome",
+            "🔐 Login",
+            "📝 Sign Up",
+            "ℹ️ About"
+        ]
+
+    if st.session_state.selected_menu not in menu_options:
+        st.session_state.selected_menu = "🏠 Welcome"
+
+    default_index = menu_options.index(st.session_state.selected_menu)
+    menu = st.sidebar.radio("Navigation", menu_options, index=default_index)
+    st.session_state.selected_menu = menu
+
+    st.sidebar.divider()
+
+    dark_mode = st.sidebar.checkbox("🌙 Dark Mode", value=(st.session_state.theme == "Dark"))
+    st.session_state.theme = "Dark" if dark_mode else "Light"
 else:
-    menu_options = [
-        "🏠 Welcome",
-        "🔐 Login",
-        "📝 Sign Up",
-        "ℹ️ About"
-    ]
+    menu = "🏠 Welcome"
+    st.markdown("""
+    <style>
+    section[data-testid="stSidebar"] {
+        display: none !important;
+    }
+    div[data-testid="stSidebarCollapsedControl"] {
+        display: none !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-if st.session_state.selected_menu not in menu_options:
-    st.session_state.selected_menu = "🏠 Welcome"
-
-default_index = menu_options.index(st.session_state.selected_menu)
-
-menu = st.sidebar.radio("Navigation", menu_options, index=default_index)
-st.session_state.selected_menu = menu
-
-st.sidebar.divider()
-
-dark_mode = st.sidebar.checkbox("🌙 Dark Mode", value=(st.session_state.theme == "Dark"))
-st.session_state.theme = "Dark" if dark_mode else "Light"
 apply_theme(st.session_state.theme)
 
 # ==============================
@@ -823,117 +843,48 @@ if menu == "🏠 Welcome":
                 st.rerun()
 
 # ==============================
-# LOGIN PAGE WITH OTP
+# LOGIN PAGE
 # ==============================
 elif menu == "🔐 Login":
     st.markdown('<div class="accent-line"></div>', unsafe_allow_html=True)
     st.markdown("## Login")
-    st.markdown("You can login using either your password or OTP.")
+    st.markdown("Enter your registered username and password to continue.")
 
-    tab_password, tab_otp = st.tabs(["Password Login", "OTP Login"])
+    col_l, col_r = st.columns([1, 1])
 
-    with tab_password:
-        col_l, col_r = st.columns([1, 1])
-        with col_l:
-            login_user = st.text_input("Username", placeholder="Example: admin", key="password_login_user")
-            login_password = st.text_input("Password", type="password", placeholder="Enter password", key="password_login_pass")
+    with col_l:
+        login_user = st.text_input("Username", placeholder="Enter your username", key="password_login_user")
+        login_password = st.text_input("Password", type="password", placeholder="Enter your password", key="password_login_pass")
 
-            if st.button("Login with Password →", use_container_width=True):
-                db = st.session_state.users_db
-                if login_user in db and str(db[login_user].get("password", "")) == login_password:
-                    user_data = db[login_user]
-                    st.session_state.logged_in = True
-                    st.session_state.current_user = login_user
-                    st.session_state.otp_sent = False
-                    st.session_state.login_otp = None
+        if st.button("Login →", use_container_width=True):
+            db = st.session_state.users_db
+            if login_user in db and str(db[login_user].get("password", "")) == login_password:
+                user_data = db[login_user]
+                st.session_state.logged_in = True
+                st.session_state.current_user = login_user
 
-                    if user_data.get("role") == "Doctor":
-                        st.session_state.selected_menu = "📋 Enroll Patient"
-                    else:
-                        st.session_state.active_patient_name = user_data.get("full_name", "")
-                        st.session_state.active_patient_id = user_data.get("patient_id", "")
-                        st.session_state.active_patient_age = user_data.get("age")
-                        st.session_state.active_patient_gender = user_data.get("gender", "")
-                        st.session_state.selected_menu = "🔬 Prediction"
-
-                    st.success(f"Welcome, {user_data.get('full_name', 'User')}!")
-                    st.rerun()
+                if user_data.get("role") == "Doctor":
+                    st.session_state.selected_menu = "📋 Enroll Patient"
                 else:
-                    st.error("Invalid username or password.")
-        with col_r:
-            st.markdown("""
-            <div class="card">
-              <h4>Password Login</h4>
-              <p>Use your registered username and password to access the app.</p>
-              <p><b>Demo username:</b> admin<br><b>Demo password:</b> 1234</p>
-            </div>
-            """, unsafe_allow_html=True)
+                    st.session_state.active_patient_name = user_data.get("full_name", "")
+                    st.session_state.active_patient_id = user_data.get("patient_id", "")
+                    st.session_state.active_patient_age = user_data.get("age")
+                    st.session_state.active_patient_gender = user_data.get("gender", "")
+                    st.session_state.selected_menu = "🔬 Prediction"
 
-    with tab_otp:
-        col_l, col_r = st.columns([1, 1])
-        with col_l:
-            login_identifier = st.text_input(
-                "Email ID or Phone Number",
-                value=st.session_state.login_identifier,
-                placeholder="Example: admin@gmail.com or 9999999999",
-                key="login_identifier_input"
-            )
+                st.success(f"Welcome, {user_data.get('full_name', 'User')}!")
+                st.rerun()
+            else:
+                st.error("Invalid username or password.")
 
-            if st.button("Send / Generate OTP", use_container_width=True):
-                username_found, user_data = find_user_by_email_or_phone(login_identifier)
-
-                if user_data:
-                    st.session_state.login_identifier = login_identifier.strip()
-                    st.session_state.login_username = username_found
-                    st.session_state.login_otp = generate_otp()
-                    st.session_state.otp_sent = True
-                    st.rerun()
-                else:
-                    st.session_state.otp_sent = False
-                    st.session_state.login_otp = None
-                    st.session_state.login_username = None
-                    st.error("No account found with this email ID or phone number. Please sign up first.")
-
-            if st.session_state.otp_sent and st.session_state.login_otp:
-                contact_type = "email ID" if "@" in st.session_state.login_identifier else "phone number"
-                st.success(f"OTP generated for your registered {contact_type}.")
-                st.info(f"Demo OTP for testing: {st.session_state.login_otp}")
-                st.caption("For a real app, connect an email/SMS service. For this project demo, the OTP is shown here.")
-
-                otp_input = st.text_input("Enter OTP", placeholder="Enter 6-digit OTP", key="otp_input")
-
-                if st.button("Verify OTP and Login →", use_container_width=True):
-                    if otp_input.strip() == str(st.session_state.login_otp):
-                        db = st.session_state.users_db
-                        user_data = db[st.session_state.login_username]
-
-                        st.session_state.logged_in = True
-                        st.session_state.current_user = st.session_state.login_username
-                        st.session_state.otp_sent = False
-                        st.session_state.login_otp = None
-
-                        if user_data.get("role") == "Doctor":
-                            st.session_state.selected_menu = "📋 Enroll Patient"
-                        else:
-                            st.session_state.active_patient_name = user_data.get("full_name", "")
-                            st.session_state.active_patient_id = user_data.get("patient_id", "")
-                            st.session_state.active_patient_age = user_data.get("age")
-                            st.session_state.active_patient_gender = user_data.get("gender", "")
-                            st.session_state.selected_menu = "🔬 Prediction"
-
-                        st.success(f"Welcome, {user_data.get('full_name', 'User')}!")
-                        st.rerun()
-                    else:
-                        st.error("Invalid OTP. Please enter the same OTP shown above.")
-        with col_r:
-            st.markdown("""
-            <div class="card">
-              <h4>OTP Login</h4>
-              <p>You can login using your registered email ID or phone number.</p>
-              <p>For project demo testing, the OTP is shown on the screen.</p>
-              <p><b>Demo email:</b> admin@gmail.com<br><b>Demo phone:</b> 9999999999</p>
-            </div>
-            """, unsafe_allow_html=True)
+    with col_r:
+        st.markdown("""
+        <div class="card">
+          <h4>Secure Login</h4>
+          <p>Use the username and password created during sign up.</p>
+          <p>After login, the correct dashboard page will open automatically.</p>
+        </div>
+        """, unsafe_allow_html=True)
 
     st.markdown("New user? Open **Sign Up** from the sidebar.")
 
@@ -968,7 +919,7 @@ elif menu == "📝 Sign Up":
             su_specialization = None
             su_license = None
 
-        st.markdown("#### Contact Details for OTP Login")
+        st.markdown("#### Contact Details")
         su_email = st.text_input("Email ID", placeholder="Example: rose@gmail.com", key="su_email")
         su_phone = st.text_input("Phone Number", placeholder="Example: 9876543210", key="su_phone")
 
@@ -1040,7 +991,7 @@ elif menu == "📝 Sign Up":
           <ul>
             <li>Both Doctor and Patient accounts can be created.</li>
             <li>Email ID, phone number and username must be unique.</li>
-            <li>Password login and OTP login are both available.</li>
+            <li>Password login is available for registered users.</li>
             <li>After sign up, the user will move directly to the correct page.</li>
             <li>Patients will move to the Prediction page.</li>
             <li>Doctors will move to the Patient Enrollment page.</li>
@@ -1712,7 +1663,7 @@ elif menu == "ℹ️ About":
     features = [
         ("Fast", "Prediction", "The system gives the diabetes risk result within a few seconds after entering patient values. This helps in quick screening and project demonstration."),
         ("8", "Main Inputs", "It uses 8 important medical inputs including glucose, BMI, blood pressure, insulin, age, pregnancies, skin thickness and diabetes pedigree function."),
-        ("OTP", "Login", "Users can log in with a password or OTP using their registered email ID or phone number. This makes access more flexible and secure."),
+        ("Secure", "Login", "Users can log in with their registered username and password. This keeps the project flow simple and professional."),
         ("PDF", "Report", "The app creates a professional patient report with result, input values, charts and health advice. The report can be downloaded and shared."),
     ]
     for col, (value, title, desc) in zip([c1, c2, c3, c4], features):
