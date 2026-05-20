@@ -362,19 +362,17 @@ def apply_theme(theme):
     }}
 
 
-    .welcome-hero {
-       .class-name {{
-    background: linear-gradient(135deg, rgba(29,78,216,0.14), rgba(20,184,166,0.12));
-}}
+    .welcome-hero {{
+        background: linear-gradient(135deg, rgba(29,78,216,0.14), rgba(20,184,166,0.12));
         border: 1px solid {border};
         border-radius: 28px;
         padding: 3rem 3.2rem;
         box-shadow: 0 24px 70px rgba(15,23,42,0.12);
         position: relative;
         overflow: hidden;
-    }
+    }}
 
-    .welcome-hero:after {
+    .welcome-hero:after {{
         content: "";
         position: absolute;
         right: -70px;
@@ -384,9 +382,9 @@ def apply_theme(theme):
         border-radius: 50%;
         background: linear-gradient(135deg, {accent}, {accent2});
         opacity: 0.14;
-    }
+    }}
 
-    .brand-pill {
+    .brand-pill {{
         display: inline-flex;
         align-items: center;
         gap: 0.55rem;
@@ -398,21 +396,21 @@ def apply_theme(theme):
         letter-spacing: 0.08em;
         text-transform: uppercase;
         margin-bottom: 1rem;
-    }
+    }}
 
-    .hero-actions {
+    .hero-actions {{
         margin-top: 1.5rem;
         font-size: 0.92rem;
         color: {text_sub} !important;
-    }
+    }}
 
-    section[data-testid="stSidebar"] {
+    section[data-testid="stSidebar"] {{
         box-shadow: 12px 0 35px rgba(15,23,42,0.08);
-    }
+    }}
 
-    section[data-testid="stSidebar"] div[role="radiogroup"] label[data-baseweb] {
+    section[data-testid="stSidebar"] div[role="radiogroup"] label[data-baseweb] {{
         background: transparent !important;
-    }
+    }}
 
     </style>
     """, unsafe_allow_html=True)
