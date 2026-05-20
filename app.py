@@ -71,17 +71,17 @@ if "users_db" not in st.session_state:
 def apply_theme(theme):
     is_dark = theme == "Dark"
 
-    bg = "#080A1A" if is_dark else "#F4F7FB"
-    sidebar_bg = "#111036" if is_dark else "#FFFFFF"
+    bg = "#080A1A" if is_dark else "#F6F8F4"
+    sidebar_bg = "#111036" if is_dark else "#EAF4EF"
     card_bg = "#151A3D" if is_dark else "#FFFFFF"
     text_main = "#F8FAFC" if is_dark else "#0F172A"
-    text_sub = "#C4CAE8" if is_dark else "#526173"
+    text_sub = "#C4CAE8" if is_dark else "#51615A"
     text_input = "#F8FAFC" if is_dark else "#0F172A"
-    accent = "#5B5FEF" if is_dark else "#1D4ED8"
-    accent2 = "#14B8A6" if is_dark else "#0F766E"
-    border = "#2D336A" if is_dark else "#D8E3F1"
+    accent = "#5B5FEF" if is_dark else "#0F766E"
+    accent2 = "#14B8A6" if is_dark else "#D97706"
+    border = "#2D336A" if is_dark else "#D6E4DD"
     input_bg = "#1B214A" if is_dark else "#FFFFFF"
-    hover_bg = "#262D63" if is_dark else "#EAF2FF"
+    hover_bg = "#262D63" if is_dark else "#DDF3EC"
 
     st.markdown(f"""
     <style>
@@ -772,6 +772,7 @@ if st.session_state.get("logged_in", False):
         "🏠 Welcome",
         "📋 Enroll Patient",
         "🔬 Prediction",
+        "📊 Visualization",
         "ℹ️ About"
     ]
 else:
@@ -1217,8 +1218,10 @@ elif menu == "🔬 Prediction":
             st.session_state.input_raw = input_raw
             st.session_state.prediction = prediction[0]
             st.session_state.probability = probability
+            st.session_state.selected_menu = "📊 Visualization"
+            st.rerun()
 
-        if "prediction" in st.session_state and "input_raw" in st.session_state:
+        if False and "prediction" in st.session_state and "input_raw" in st.session_state:
             input_raw = st.session_state.input_raw
             prediction_value = st.session_state.prediction
             probability = st.session_state.probability
@@ -1443,6 +1446,251 @@ elif menu == "🔬 Prediction":
                     """,
                     unsafe_allow_html=True
                 )
+
+# ==============================
+# VISUALIZATION PAGE
+# ==============================
+elif menu == "📊 Visualization":
+    if not st.session_state.logged_in:
+        st.warning("Please login first.")
+    elif "prediction" not in st.session_state or "input_raw" not in st.session_state:
+        st.info("Please complete prediction first. Open the Prediction page and click Run Prediction.")
+        if st.button("Open Prediction Page"):
+            st.session_state.selected_menu = "🔬 Prediction"
+            st.rerun()
+    else:
+        input_raw = st.session_state.input_raw
+        prediction_value = st.session_state.prediction
+        probability = st.session_state.probability
+
+        glucose = input_raw["Glucose"].values[0]
+        bp = input_raw["BloodPressure"].values[0]
+        skin = input_raw["SkinThickness"].values[0]
+        insulin = input_raw["Insulin"].values[0]
+        bmi = input_raw["BMI"].values[0]
+        dpf = input_raw["DiabetesPedigreeFunction"].values[0]
+        age = input_raw["Age"].values[0]
+
+        st.markdown("### Prediction Result")
+        st.markdown(f"**Patient Name:** {st.session_state.active_patient_name or 'Not provided'}")
+        st.markdown(f"**Patient ID:** {st.session_state.active_patient_id or 'Not provided'}")
+
+        if prediction_value == 1:
+            result_text = "High Risk of Diabetes"
+            st.error("High Risk of Diabetes — Please consult a doctor.")
+            st.markdown('<span class="badge badge-red">HIGH RISK</span>', unsafe_allow_html=True)
+        else:
+            result_text = "Low Risk of Diabetes"
+            st.success("Low Risk of Diabetes.")
+            st.markdown('<span class="badge badge-green">LOW RISK</span>', unsafe_allow_html=True)
+
+        if probability is not None:
+            st.metric("Diabetes Risk Probability", f"{probability * 100:.2f}%")
+
+        st.markdown("### Patient Health Visualization")
+
+        tab1, tab2, tab3, tab4, tab5 = st.tabs([
+            "Glucose", "BMI", "Blood Pressure", "Insulin", "Overall"
+        ])
+
+        with tab1:
+            st.markdown("#### Glucose Level")
+            fig, ax = plt.subplots(figsize=(4.8, 2.3))
+            ax.barh(["Patient"], [glucose], height=0.35)
+            ax.axvspan(50, 99, alpha=0.08, label="Normal")
+            ax.axvspan(100, 125, alpha=0.08, label="Prediabetes")
+            ax.axvspan(126, 200, alpha=0.08, label="High")
+            ax.axvline(100, linestyle="--", linewidth=1)
+            ax.axvline(126, linestyle="--", linewidth=1)
+            ax.set_xlim(50, 200)
+            ax.set_xlabel("mg/dL")
+            ax.set_title("Glucose Status")
+            ax.legend(fontsize=7, loc="upper right")
+            fig.tight_layout()
+            st.pyplot(fig, use_container_width=False)
+            st.caption("Shows the patient glucose value against normal, prediabetes and high ranges.")
+
+        with tab2:
+            st.markdown("#### BMI Level")
+            fig, ax = plt.subplots(figsize=(4.8, 2.5))
+            categories = ["Under", "Normal", "Over", "Obese"]
+            limits = [18.5, 24.9, 29.9, 40]
+            ax.plot(categories, limits, marker="o", linewidth=2, label="Category limit")
+            patient_category = "Under" if bmi < 18.5 else "Normal" if bmi < 25 else "Over" if bmi < 30 else "Obese"
+            ax.scatter([patient_category], [bmi], s=90, marker="D", label="Patient BMI")
+            ax.set_ylabel("BMI")
+            ax.set_title("BMI Category Position")
+            ax.grid(True, alpha=0.25)
+            ax.legend(fontsize=7)
+            fig.tight_layout()
+            st.pyplot(fig, use_container_width=False)
+            st.caption("Shows the patient's BMI position in standard BMI categories.")
+
+        with tab3:
+            st.markdown("#### Blood Pressure Donut Chart")
+            low_part = max(min(bp, 80), 0)
+            high_part = max(120 - bp, 0)
+            patient_part = max(120 - low_part - high_part, 1)
+            values = [low_part, patient_part, high_part]
+            labels = ["Lower Zone", "Patient Zone", "Remaining Zone"]
+            fig, ax = plt.subplots(figsize=(3.8, 3.0))
+            wedges, texts, autotexts = ax.pie(
+                values,
+                labels=labels,
+                autopct="%1.0f%%",
+                startangle=90,
+                pctdistance=0.78,
+                wedgeprops={"width": 0.38, "edgecolor": "white"},
+                textprops={"fontsize": 8}
+            )
+            ax.text(0, 0, f"{bp}\nmm Hg", ha="center", va="center", fontsize=12, fontweight="bold")
+            ax.set_title("Blood Pressure Status", fontsize=11)
+            fig.tight_layout()
+            st.pyplot(fig, use_container_width=False)
+            st.caption("A cleaner donut chart showing blood pressure as a compact professional visual.")
+
+        with tab4:
+            st.markdown("#### Insulin Level")
+            fig, ax = plt.subplots(figsize=(4.8, 2.5))
+            ax.fill_between([0, 1, 2], [0, insulin, 300], alpha=0.16)
+            ax.plot(["Low", "Patient", "Upper"], [0, insulin, 300], marker="o", linewidth=2)
+            ax.set_ylabel("μU/mL")
+            ax.set_title("Insulin Range View")
+            ax.grid(True, alpha=0.25)
+            fig.tight_layout()
+            st.pyplot(fig, use_container_width=False)
+            st.caption("Shows the insulin value in a simple range-style trend view.")
+
+        with tab5:
+            st.markdown("#### Overall Patient Profile")
+            values = [glucose, bp, skin, insulin, bmi, dpf, age]
+            labels = ["Glucose", "BP", "Skin", "Insulin", "BMI", "DPF", "Age"]
+
+            fig, ax = plt.subplots(figsize=(5.3, 2.8))
+            ax.plot(labels, values, marker="o", linewidth=2)
+            ax.fill_between(labels, values, alpha=0.12)
+            ax.set_title("Overall Health Profile", fontsize=11)
+            ax.set_ylabel("Values")
+            ax.grid(True, alpha=0.25)
+            plt.xticks(rotation=20)
+            fig.tight_layout()
+            st.pyplot(fig, use_container_width=False)
+            st.caption("Overall graph is kept, but made smaller and cleaner.")
+
+        st.markdown("### Medical Advice")
+
+        if glucose >= 126 or prediction_value == 1:
+            st.warning("""
+            **Diabetes Risk Advice:**
+            - Consult a doctor or diabetes specialist.
+            - Avoid excess sugar, sweet drinks and junk food.
+            - Walk for at least 30 minutes daily.
+            - Monitor glucose levels regularly.
+            - Follow a balanced diet with vegetables, protein and fiber-rich food.
+            """)
+        elif 100 <= glucose < 126:
+            st.info("""
+            **Prediabetes Advice:**
+            - Improve daily lifestyle habits.
+            - Maintain a healthy body weight.
+            - Exercise regularly.
+            - Reduce refined sugar, white rice and processed food.
+            - Repeat glucose testing after medical consultation.
+            """)
+        else:
+            st.success("""
+            **Healthy Advice:**
+            - Continue a balanced diet.
+            - Stay physically active.
+            - Go for routine health checkups.
+            - Monitor BMI and glucose level regularly.
+            """)
+
+        st.markdown("---")
+        st.markdown("## Patient Report")
+
+        patient_name_report = st.text_input(
+            "Patient Name for Report",
+            value=st.session_state.active_patient_name or "Unknown Patient"
+        )
+        patient_id_report = st.text_input(
+            "Patient ID for Report",
+            value=st.session_state.active_patient_id or "PT-001"
+        )
+
+        if st.button("Generate Professional Report"):
+            report_path = generate_patient_report(
+                patient_name_report,
+                patient_id_report,
+                result_text,
+                input_raw[['Pregnancies', 'Glucose', 'BloodPressure',
+                           'SkinThickness', 'Insulin', 'BMI',
+                           'DiabetesPedigreeFunction', 'Age']],
+                st.session_state.patient_photo
+            )
+
+            with open(report_path, "rb") as pdf_file:
+                pdf_bytes = pdf_file.read()
+
+            st.success("Professional report generated successfully.")
+
+            st.markdown("""
+            <div class="card" style="border-left:5px solid #2563EB;">
+                <h4 style="margin-bottom:0.4rem;">Report Ready</h4>
+                <p style="margin-bottom:0.2rem;">Download the PDF report or share the PDF file from the browser share button.</p>
+                <p style="font-size:0.85rem; opacity:0.75;">The PDF file share button works best on mobile browsers. If desktop browser blocks file sharing, download the PDF and attach it in WhatsApp.</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+            pdf_file_name = f"{patient_name_report}_professional_report.pdf"
+
+            st.download_button(
+                label="Download Professional PDF Report",
+                data=pdf_bytes,
+                file_name=pdf_file_name,
+                mime="application/pdf"
+            )
+
+            share_caption = (
+                f"GLUCOTRACK Diabetes Prediction Report\n"
+                f"Patient Name: {patient_name_report}\n"
+                f"Patient ID: {patient_id_report}\n"
+                f"Prediction Result: {result_text}"
+            )
+            build_whatsapp_file_share_button(pdf_bytes, pdf_file_name, share_caption)
+
+            whatsapp_message = quote(
+                f"GLUCOTRACK Diabetes Prediction Report\n\n"
+                f"Patient Name: {patient_name_report}\n"
+                f"Patient ID: {patient_id_report}\n"
+                f"Prediction Result: {result_text}\n"
+                f"Glucose: {input_raw['Glucose'].values[0]} mg/dL\n"
+                f"BMI: {input_raw['BMI'].values[0]} kg/m²\n"
+                f"Blood Pressure: {input_raw['BloodPressure'].values[0]} mm Hg\n\n"
+                f"PDF report has been generated. Please attach the downloaded PDF if required."
+            )
+
+            whatsapp_url = f"https://wa.me/?text={whatsapp_message}"
+
+            st.markdown(
+                f"""
+                <a href="{whatsapp_url}" target="_blank" style="text-decoration:none;">
+                    <button style="
+                        background:linear-gradient(135deg,#16A34A,#22C55E);
+                        color:white;
+                        border:none;
+                        padding:12px 20px;
+                        border-radius:12px;
+                        cursor:pointer;
+                        font-weight:700;
+                        margin-top:10px;
+                        box-shadow:0 8px 20px rgba(34,197,94,0.25);">
+                        Share Report Summary on WhatsApp
+                    </button>
+                </a>
+                """,
+                unsafe_allow_html=True
+            )
 
 # ==============================
 # ABOUT PAGE
