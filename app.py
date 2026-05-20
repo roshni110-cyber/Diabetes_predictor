@@ -458,17 +458,17 @@ def apply_theme(theme):
     }}
 
 
-    .welcome-hero-center {
+    .welcome-hero-center {{
         max-width: 980px;
         margin: 0 auto;
         text-align: center;
         padding: 2.5rem 1rem 1rem 1rem;
-    }
-    .welcome-text-area {
+    }}
+    .welcome-text-area {{
         max-width: 760px;
         margin: 0 auto 1.5rem auto;
-    }
-    .welcome-image-card {
+    }}
+    .welcome-image-card {{
         max-width: 760px;
         height: 330px;
         margin: 1.6rem auto 0 auto;
@@ -477,14 +477,14 @@ def apply_theme(theme):
         border: 1px solid {border};
         box-shadow: 0 24px 70px rgba(15,23,42,0.16);
         background: linear-gradient(135deg, {accent}, {accent2});
-    }
-    .welcome-image-card img {
+    }}
+    .welcome-image-card img {{
         width: 100%;
         height: 100%;
         object-fit: cover;
         display: block;
         opacity: 0.94;
-    }
+    }}
 
     </style>
     """, unsafe_allow_html=True)
@@ -955,17 +955,17 @@ else:
         display: none !important;
     }
 
-    .welcome-hero-center {
+    .welcome-hero-center {{
         max-width: 980px;
         margin: 0 auto;
         text-align: center;
         padding: 2.5rem 1rem 1rem 1rem;
-    }
-    .welcome-text-area {
+    }}
+    .welcome-text-area {{
         max-width: 760px;
         margin: 0 auto 1.5rem auto;
-    }
-    .welcome-image-card {
+    }}
+    .welcome-image-card {{
         max-width: 760px;
         height: 330px;
         margin: 1.6rem auto 0 auto;
@@ -974,14 +974,14 @@ else:
         border: 1px solid {border};
         box-shadow: 0 24px 70px rgba(15,23,42,0.16);
         background: linear-gradient(135deg, {accent}, {accent2});
-    }
-    .welcome-image-card img {
+    }}
+    .welcome-image-card img {{
         width: 100%;
         height: 100%;
         object-fit: cover;
         display: block;
         opacity: 0.94;
-    }
+    }}
 
     </style>
     """, unsafe_allow_html=True)
