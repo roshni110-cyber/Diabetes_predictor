@@ -363,7 +363,9 @@ def apply_theme(theme):
 
 
     .welcome-hero {
-        background: linear-gradient(135deg, rgba(29,78,216,0.14), rgba(20,184,166,0.12));
+       .class-name {{
+    background: linear-gradient(135deg, rgba(29,78,216,0.14), rgba(20,184,166,0.12));
+}}
         border: 1px solid {border};
         border-radius: 28px;
         padding: 3rem 3.2rem;
