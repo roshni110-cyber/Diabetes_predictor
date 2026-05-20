@@ -531,7 +531,7 @@ def create_chart_image(title, labels, values):
     plt.close(fig)
     return img_buffer
 
-def generate_patient_report(patient_name, patient_id, result_text, patient_data, patient_photo=None):
+def generate_patient_report(patient_name, patient_id, result_text, patient_data, patient_photo=None, include_photo_slot=False, report_for="Patient"):
     """Create a professional PDF report with styled sections, tables and charts."""
     safe_name = "".join(ch if ch.isalnum() else "_" for ch in (patient_name or "patient"))
     file_path = os.path.join(tempfile.gettempdir(), f"{safe_name}_diabetes_report.pdf")
@@ -613,6 +613,7 @@ def generate_patient_report(patient_name, patient_id, result_text, patient_data,
     c.setFillColor(text_muted)
     c.drawString(65, height - 170, f"Patient Name: {patient_name}")
     c.drawString(65, height - 188, f"Patient ID: {patient_id}")
+    c.drawString(65, height - 206, f"Report Created By: {report_for}")
 
     c.setFillColor(result_color)
     c.roundRect(width - 205, height - 185, 130, 34, 10, fill=True, stroke=False)
@@ -620,13 +621,23 @@ def generate_patient_report(patient_name, patient_id, result_text, patient_data,
     c.setFont("Helvetica-Bold", 12)
     c.drawCentredString(width - 140, height - 173, risk_label)
 
-    if patient_photo:
-        try:
-            photo_bytes = base64.b64decode(patient_photo)
-            photo_img = ImageReader(io.BytesIO(photo_bytes))
-            c.drawImage(photo_img, width - 85, height - 205, 45, 45, mask='auto')
-        except Exception:
-            pass
+    if include_photo_slot:
+        c.setStrokeColor(border)
+        c.setFillColor(light_bg)
+        c.roundRect(width - 95, height - 207, 55, 55, 8, fill=True, stroke=True)
+        if patient_photo:
+            try:
+                photo_bytes = base64.b64decode(patient_photo)
+                photo_img = ImageReader(io.BytesIO(photo_bytes))
+                c.drawImage(photo_img, width - 90, height - 202, 45, 45, mask='auto')
+            except Exception:
+                c.setFillColor(text_muted)
+                c.setFont("Helvetica", 7)
+                c.drawCentredString(width - 67, height - 178, "Photo")
+        else:
+            c.setFillColor(text_muted)
+            c.setFont("Helvetica", 7)
+            c.drawCentredString(width - 67, height - 178, "Photo")
 
     y = section_title(height - 245, "Key Health Indicators")
     info_card(50, y - 55, 115, 52, "Glucose", patient_data["Glucose"].values[0], danger if glucose_value >= 126 else primary)
@@ -776,23 +787,31 @@ if show_sidebar:
     """, unsafe_allow_html=True)
 
     if st.session_state.get("logged_in", False):
-        menu_options = [
-            "🏠 Welcome",
-            "📋 Enroll Patient",
-            "🔬 Prediction",
-            "📊 Visualization",
-            "ℹ️ About"
-        ]
+        current_user_data = st.session_state.users_db.get(st.session_state.current_user, {})
+        current_role = current_user_data.get("role", "Patient")
+
+        if current_role == "Doctor":
+            menu_options = [
+                "📋 Enroll Patient",
+                "🔬 Prediction",
+                "📊 Visualization",
+                "ℹ️ About"
+            ]
+        else:
+            menu_options = [
+                "🔬 Prediction",
+                "📊 Visualization",
+                "ℹ️ About"
+            ]
     else:
         menu_options = [
-            "🏠 Welcome",
             "🔐 Login",
             "📝 Sign Up",
             "ℹ️ About"
         ]
 
     if st.session_state.selected_menu not in menu_options:
-        st.session_state.selected_menu = "🏠 Welcome"
+        st.session_state.selected_menu = menu_options[0]
 
     default_index = menu_options.index(st.session_state.selected_menu)
     menu = st.sidebar.radio("Navigation", menu_options, index=default_index)
@@ -850,9 +869,9 @@ elif menu == "🔐 Login":
     st.markdown("## Login")
     st.markdown("Enter your registered username and password to continue.")
 
-    col_l, col_r = st.columns([1, 1])
+    login_box, _ = st.columns([1, 1])
 
-    with col_l:
+    with login_box:
         login_user = st.text_input("Username", placeholder="Enter your username", key="password_login_user")
         login_password = st.text_input("Password", type="password", placeholder="Enter your password", key="password_login_pass")
 
@@ -870,23 +889,13 @@ elif menu == "🔐 Login":
                     st.session_state.active_patient_id = user_data.get("patient_id", "")
                     st.session_state.active_patient_age = user_data.get("age")
                     st.session_state.active_patient_gender = user_data.get("gender", "")
+                    st.session_state.patient_photo = None
                     st.session_state.selected_menu = "🔬 Prediction"
 
                 st.success(f"Welcome, {user_data.get('full_name', 'User')}!")
                 st.rerun()
             else:
                 st.error("Invalid username or password.")
-
-    with col_r:
-        st.markdown("""
-        <div class="card">
-          <h4>Secure Login</h4>
-          <p>Use the username and password created during sign up.</p>
-          <p>After login, the correct dashboard page will open automatically.</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    st.markdown("New user? Open **Sign Up** from the sidebar.")
 
 # ==============================
 # SIGN UP PAGE
@@ -1332,7 +1341,9 @@ elif menu == "🔬 Prediction":
                     input_raw[['Pregnancies', 'Glucose', 'BloodPressure',
                                'SkinThickness', 'Insulin', 'BMI',
                                'DiabetesPedigreeFunction', 'Age']],
-                    st.session_state.patient_photo
+                    st.session_state.patient_photo,
+                    include_photo_slot=(st.session_state.users_db.get(st.session_state.current_user, {}).get("role") == "Doctor"),
+                    report_for=st.session_state.users_db.get(st.session_state.current_user, {}).get("role", "Patient")
                 )
 
                 with open(report_path, "rb") as pdf_file:
@@ -1577,7 +1588,9 @@ elif menu == "📊 Visualization":
                 input_raw[['Pregnancies', 'Glucose', 'BloodPressure',
                            'SkinThickness', 'Insulin', 'BMI',
                            'DiabetesPedigreeFunction', 'Age']],
-                st.session_state.patient_photo
+                st.session_state.patient_photo,
+                include_photo_slot=(st.session_state.users_db.get(st.session_state.current_user, {}).get("role") == "Doctor"),
+                report_for=st.session_state.users_db.get(st.session_state.current_user, {}).get("role", "Patient")
             )
 
             with open(report_path, "rb") as pdf_file:
