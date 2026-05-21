@@ -99,6 +99,27 @@ local_data = load_local_data()
 st.session_state.users_db = local_data["users_db"]
 st.session_state.patients_db = local_data["patients_db"]
 
+# Page names used for browser back/forward support.
+PAGE_SLUGS = {
+    "🏠 Welcome": "welcome",
+    "🔐 Login": "login",
+    "📝 Sign Up": "signup",
+    "👋 Doctor Home": "doctor_home",
+    "📋 Enroll Patient": "enroll_patient",
+    "👥 Patient Details": "patient_details",
+    "🔬 Prediction": "prediction",
+    "📊 Visualization": "visualization",
+    "ℹ️ About": "about",
+}
+SLUG_PAGES = {v: k for k, v in PAGE_SLUGS.items()}
+
+try:
+    page_from_url = st.query_params.get("page", None)
+    if page_from_url in SLUG_PAGES:
+        st.session_state.selected_menu = SLUG_PAGES[page_from_url]
+except Exception:
+    pass
+
 # Restore login on browser refresh for this demo app.
 try:
     remembered_user = st.query_params.get("user", None)
@@ -117,30 +138,37 @@ except Exception:
 def apply_theme(theme):
     is_dark = theme == "Dark"
 
-    bg = "#080A1A" if is_dark else "#F3F9FF"
-    sidebar_bg = "#111936" if is_dark else "#EAF6FF"
-    card_bg = "#151A3D" if is_dark else "#FFFFFF"
-    text_main = "#F8FAFC" if is_dark else "#0F172A"
-    text_sub = "#C4CAE8" if is_dark else "#475569"
-    text_input = "#F8FAFC" if is_dark else "#0F172A"
-    accent = "#60A5FA" if is_dark else "#0284C7"
-    accent2 = "#22D3EE" if is_dark else "#0EA5E9"
-    border = "#2D336A" if is_dark else "#CFE8F9"
-    input_bg = "#1B214A" if is_dark else "#FFFFFF"
-    hover_bg = "#262D63" if is_dark else "#E0F2FE"
+    bg = "#07111F" if is_dark else "#F7FCFF"
+    sidebar_bg = "#0D1B2F" if is_dark else "#E7F6FF"
+    card_bg = "#101B33" if is_dark else "#FFFFFF"
+    text_main = "#F8FAFC" if is_dark else "#0B1F33"
+    text_sub = "#B8C7E6" if is_dark else "#486174"
+    text_input = "#F8FAFC" if is_dark else "#0B1F33"
+    accent = "#38BDF8" if is_dark else "#0077B6"
+    accent2 = "#2DD4BF" if is_dark else "#00B4D8"
+    border = "#263B5D" if is_dark else "#BFE8F8"
+    input_bg = "#13213C" if is_dark else "#FFFFFF"
+    hover_bg = "#1D3155" if is_dark else "#DDF4FF"
 
     st.markdown(f"""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&display=swap');
 
     html, body, .stApp {{
-        background-color: {bg} !important;
+        background: radial-gradient(circle at top left, rgba(56,189,248,0.18), transparent 34%), linear-gradient(135deg, {bg}, {hover_bg}) !important;
         color: {text_main} !important;
         font-family: 'DM Sans', sans-serif;
     }}
 
+    .block-container {{
+        max-width: 1180px !important;
+        padding-top: 2rem !important;
+        padding-left: 2rem !important;
+        padding-right: 2rem !important;
+    }}
+
     section[data-testid="stSidebar"] {{
-        background-color: {sidebar_bg} !important;
+        background: linear-gradient(180deg, {sidebar_bg}, {hover_bg}) !important;
         border-right: 1px solid {border};
     }}
 
@@ -271,19 +299,21 @@ def apply_theme(theme):
         background: linear-gradient(135deg, {accent}, {accent2}) !important;
         color: #FFFFFF !important;
         border: none !important;
-        border-radius: 10px !important;
-        padding: 0.6rem 1.7rem !important;
+        border-radius: 999px !important;
+        padding: 0.38rem 0.95rem !important;
+        min-height: 34px !important;
         font-family: 'DM Sans', sans-serif !important;
+        font-size: 0.86rem !important;
         font-weight: 700 !important;
-        letter-spacing: 0.03em;
+        letter-spacing: 0.02em;
         transition: all 0.2s ease !important;
-        box-shadow: 0 5px 18px rgba(15,118,110,0.28) !important;
+        box-shadow: 0 8px 22px rgba(2,132,199,0.24) !important;
     }}
 
     .stButton > button:hover {{
-        transform: translateY(-1px) !important;
-        box-shadow: 0 8px 24px rgba(15,118,110,0.42) !important;
-        filter: brightness(1.05) !important;
+        transform: translateY(-1px) scale(1.01) !important;
+        box-shadow: 0 12px 28px rgba(2,132,199,0.35) !important;
+        filter: brightness(1.06) !important;
     }}
 
     a, button, [role="button"], .stRadio label, .stSelectbox [role="option"] {{
@@ -513,10 +543,10 @@ def apply_theme(theme):
 
     /* Professional compact controls */
     .stButton > button, .stDownloadButton > button {{
-        min-height: 38px !important;
-        padding: 0.45rem 1.05rem !important;
-        border-radius: 11px !important;
-        font-size: 0.9rem !important;
+        min-height: 34px !important;
+        padding: 0.36rem 0.9rem !important;
+        border-radius: 999px !important;
+        font-size: 0.84rem !important;
     }}
 
     div[data-testid="stNumberInput"] button {{
@@ -586,6 +616,10 @@ model, columns = load_model()
 # ==============================
 def go_to_page(page_name):
     st.session_state.selected_menu = page_name
+    try:
+        st.query_params["page"] = PAGE_SLUGS.get(page_name, "")
+    except Exception:
+        pass
     st.rerun()
 
 def generate_otp():
@@ -1090,7 +1124,16 @@ if show_sidebar:
 
     default_index = menu_options.index(st.session_state.selected_menu)
     menu = st.sidebar.radio("Navigation", menu_options, index=default_index)
-    st.session_state.selected_menu = menu
+    if menu != st.session_state.selected_menu:
+        st.session_state.previous_menu = st.session_state.selected_menu
+        st.session_state.selected_menu = menu
+        try:
+            st.query_params["page"] = PAGE_SLUGS.get(menu, "")
+            if st.session_state.get("current_user"):
+                st.query_params["user"] = st.session_state.current_user
+        except Exception:
+            pass
+        st.rerun()
 
     st.sidebar.divider()
 
@@ -1161,8 +1204,7 @@ if menu == "🏠 Welcome":
     c1, c2, c3 = st.columns([2, 1, 2])
     with c2:
         if st.button("Get Started →", use_container_width=True):
-            st.session_state.selected_menu = "🔐 Login"
-            st.rerun()
+            go_to_page("🔐 Login")
 
 # ==============================
 # LOGIN PAGE
@@ -1196,6 +1238,10 @@ elif menu == "🔐 Login":
                     st.session_state.patient_photo = None
                     st.session_state.selected_menu = "🔬 Prediction"
 
+                try:
+                    st.query_params["page"] = PAGE_SLUGS.get(st.session_state.selected_menu, "")
+                except Exception:
+                    pass
                 st.success(f"Welcome, {user_data.get('full_name', 'User')}!")
                 st.rerun()
             else:
@@ -1296,6 +1342,10 @@ elif menu == "📝 Sign Up":
                     st.session_state.active_patient_gender = su_gender
                     st.session_state.selected_menu = "🔬 Prediction"
 
+                try:
+                    st.query_params["page"] = PAGE_SLUGS.get(st.session_state.selected_menu, "")
+                except Exception:
+                    pass
                 st.success(f"{account_type} account created successfully.")
                 st.balloons()
                 st.rerun()
@@ -1328,12 +1378,10 @@ elif menu == "👋 Doctor Home":
             a, b = st.columns(2)
             with a:
                 if st.button("➕ Enroll New Patient", use_container_width=True):
-                    st.session_state.selected_menu = "📋 Enroll Patient"
-                    st.rerun()
+                    go_to_page("📋 Enroll Patient")
             with b:
                 if st.button("👥 View Patient Details", use_container_width=True):
-                    st.session_state.selected_menu = "👥 Patient Details"
-                    st.rerun()
+                    go_to_page("👥 Patient Details")
 
 # ==============================
 # PATIENT DETAILS PAGE
@@ -1355,8 +1403,7 @@ elif menu == "👥 Patient Details":
             if not doctor_patients:
                 st.info("No patients enrolled yet. Add a patient from the Enroll Patient page.")
                 if st.button("Enroll New Patient"):
-                    st.session_state.selected_menu = "📋 Enroll Patient"
-                    st.rerun()
+                    go_to_page("📋 Enroll Patient")
             else:
                 search_text = st.text_input("Search by Patient ID or Name", placeholder="Example: PT-001 or Ramesh")
                 rows = []
@@ -1411,8 +1458,7 @@ elif menu == "👥 Patient Details":
                             for widget_key in ["pred_preg", "pred_glucose", "pred_bp", "pred_skin", "pred_insulin", "pred_bmi", "pred_dpf", "pred_age"]:
                                 if widget_key in st.session_state:
                                     del st.session_state[widget_key]
-                            st.session_state.selected_menu = "🔬 Prediction"
-                            st.rerun()
+                            go_to_page("🔬 Prediction")
                 else:
                     st.warning("No matching patient found.")
 
@@ -1551,11 +1597,6 @@ elif menu == "🔬 Prediction":
         with header_col:
             st.markdown("## Diabetes Risk Assessment")
             st.markdown("Enter the patient's health values, save the data, then run prediction.")
-            if current_role == "Doctor":
-                if st.button("← Back to Enroll Patient", key="back_to_enroll_top"):
-                    st.session_state.selected_menu = "📋 Enroll Patient"
-                    st.rerun()
-
             patient_name = st.text_input(
                 "Patient Name",
                 value=st.session_state.active_patient_name or current_user.get("full_name", ""),
@@ -1630,8 +1671,7 @@ elif menu == "🔬 Prediction":
             st.session_state.probability = probability
             save_current_patient_values(current_user, preg, glucose, bp, skin, insulin, bmi, dpf, age, prediction[0], probability)
 
-            st.session_state.selected_menu = "📊 Visualization"
-            st.rerun()
+            go_to_page("📊 Visualization")
 
         if False and "prediction" in st.session_state and "input_raw" in st.session_state:
             input_raw = st.session_state.input_raw
@@ -1876,8 +1916,7 @@ elif menu == "📊 Visualization":
     elif "prediction" not in st.session_state or "input_raw" not in st.session_state:
         st.info("Please complete prediction first. Open the Prediction page and click Run Prediction.")
         if st.button("Open Prediction Page"):
-            st.session_state.selected_menu = "🔬 Prediction"
-            st.rerun()
+            go_to_page("🔬 Prediction")
     else:
         input_raw = st.session_state.input_raw
         prediction_value = st.session_state.prediction
