@@ -106,7 +106,7 @@ try:
         st.session_state.current_user = remembered_user
         if st.session_state.selected_menu == "🏠 Welcome":
             role = st.session_state.users_db[remembered_user].get("role", "Patient")
-            st.session_state.selected_menu = "👥 Patient Details" if role == "Doctor" else "🔬 Prediction"
+            st.session_state.selected_menu = "📋 Enroll Patient" if role == "Doctor" else "🔬 Prediction"
 except Exception:
     pass
 
@@ -486,6 +486,28 @@ def apply_theme(theme):
         opacity: 0.94;
     }}
 
+
+
+    /* Keep dataframe and chart toolbar icons visible in dark mode */
+    div[data-testid="stElementToolbar"] {{
+        background: rgba(255,255,255,0.92) !important;
+        border-radius: 10px !important;
+        box-shadow: 0 6px 18px rgba(0,0,0,0.12) !important;
+    }}
+    div[data-testid="stElementToolbar"] button,
+    div[data-testid="stElementToolbar"] svg {{
+        color: #0F172A !important;
+        fill: #0F172A !important;
+        stroke: #0F172A !important;
+        opacity: 1 !important;
+    }}
+    div[data-testid="stDataFrame"] button svg,
+    div[data-testid="stDataFrame"] svg {{
+        color: #0F172A !important;
+        fill: #0F172A !important;
+        stroke: #0F172A !important;
+    }}
+
     </style>
     """, unsafe_allow_html=True)
 
@@ -536,7 +558,7 @@ def build_whatsapp_file_share_button(pdf_bytes, file_name, caption):
         font-weight:700;
         box-shadow:0 8px 20px rgba(34,197,94,0.25);
         font-family:Arial, sans-serif;">
-        Share PDF File on WhatsApp
+        📎 Share PDF File
       </button>
       <p id="shareStatus" style="font-family:Arial, sans-serif; font-size:13px; color:#475569;"></p>
     </div>
@@ -1035,7 +1057,7 @@ elif menu == "🔐 Login":
                 st.query_params["user"] = login_user
 
                 if user_data.get("role") == "Doctor":
-                    st.session_state.selected_menu = "👥 Patient Details"
+                    st.session_state.selected_menu = "📋 Enroll Patient"
                 else:
                     st.session_state.active_patient_name = user_data.get("full_name", "")
                     st.session_state.active_patient_id = user_data.get("patient_id", "")
@@ -1135,7 +1157,7 @@ elif menu == "📝 Sign Up":
                 st.query_params["user"] = su_username
 
                 if account_type == "Doctor":
-                    st.session_state.selected_menu = "👥 Patient Details"
+                    st.session_state.selected_menu = "📋 Enroll Patient"
                 else:
                     st.session_state.active_patient_name = su_fullname
                     st.session_state.active_patient_id = ""
@@ -1184,6 +1206,9 @@ elif menu == "👥 Patient Details":
                         "Age": pdata.get("age", ""),
                         "Gender": pdata.get("gender", ""),
                         "Contact": pdata.get("contact", ""),
+                        "Last Glucose": pdata.get("last_input", {}).get("Glucose", ""),
+                        "Last BMI": pdata.get("last_input", {}).get("BMI", ""),
+                        "Last Checked": pdata.get("last_checked", ""),
                         "Notes": pdata.get("notes", "")
                     })
 
@@ -1198,6 +1223,18 @@ elif menu == "👥 Patient Details":
                             st.session_state.active_patient_age = saved_patient.get("age")
                             st.session_state.active_patient_gender = saved_patient.get("gender", "")
                             st.session_state.patient_photo = saved_patient.get("photo")
+                            last_input = saved_patient.get("last_input")
+                            if last_input:
+                                st.session_state.input_raw = pd.DataFrame([last_input])
+                                st.session_state.prediction = saved_patient.get("last_prediction")
+                                st.session_state.probability = saved_patient.get("last_probability")
+                            else:
+                                for clear_key in ["input_raw", "prediction", "probability"]:
+                                    if clear_key in st.session_state:
+                                        del st.session_state[clear_key]
+                            for widget_key in ["pred_preg", "pred_glucose", "pred_bp", "pred_skin", "pred_insulin", "pred_bmi", "pred_dpf", "pred_age"]:
+                                if widget_key in st.session_state:
+                                    del st.session_state[widget_key]
                             st.session_state.selected_menu = "🔬 Prediction"
                             st.rerun()
                 else:
@@ -1223,23 +1260,6 @@ elif menu == "📋 Enroll Patient":
             if doctor_key not in st.session_state.patients_db:
                 st.session_state.patients_db[doctor_key] = {}
 
-            st.markdown("### Open Existing Patient")
-            lookup_id = st.text_input("Enter Patient ID to open saved patient", placeholder="Example: PT-20260001", key="lookup_patient_id")
-            if st.button("Open Patient by ID", use_container_width=True):
-                saved_patient = st.session_state.patients_db.get(doctor_key, {}).get(lookup_id.strip())
-                if saved_patient:
-                    st.session_state.active_patient_name = saved_patient.get("name", "")
-                    st.session_state.active_patient_id = saved_patient.get("patient_id", "")
-                    st.session_state.active_patient_age = saved_patient.get("age")
-                    st.session_state.active_patient_gender = saved_patient.get("gender", "")
-                    st.session_state.patient_photo = saved_patient.get("photo")
-                    st.session_state.selected_menu = "🔬 Prediction"
-                    st.success(f"Patient {saved_patient.get('name', '')} opened successfully.")
-                    st.rerun()
-                else:
-                    st.error("No patient found with this Patient ID for this doctor.")
-
-            st.markdown("---")
             st.markdown("### Enroll New Patient")
 
             col1, col2 = st.columns([1, 1])
@@ -1309,6 +1329,12 @@ elif menu == "📋 Enroll Patient":
                     st.session_state.active_patient_age = p_age
                     st.session_state.active_patient_gender = p_gender
                     st.session_state.patient_photo = uploaded_photo_b64
+                    for widget_key in ["pred_preg", "pred_glucose", "pred_bp", "pred_skin", "pred_insulin", "pred_bmi", "pred_dpf", "pred_age"]:
+                        if widget_key in st.session_state:
+                            del st.session_state[widget_key]
+                    for clear_key in ["input_raw", "prediction", "probability"]:
+                        if clear_key in st.session_state:
+                            del st.session_state[clear_key]
                     st.session_state.selected_menu = "🔬 Prediction"
                     st.success(f"Patient {p_name} enrolled successfully.")
                     st.rerun()
@@ -1324,12 +1350,23 @@ elif menu == "🔬 Prediction":
 
         current_role = current_user.get("role", "Patient")
 
-        if not st.session_state.active_patient_name and current_role == "Patient":
-            st.session_state.active_patient_name = current_user.get("full_name", "")
+        if current_role == "Patient":
+            st.session_state.active_patient_name = st.session_state.active_patient_name or current_user.get("full_name", "")
             st.session_state.active_patient_id = ""
             st.session_state.patient_photo = None
             st.session_state.active_patient_age = current_user.get("age")
             st.session_state.active_patient_gender = current_user.get("gender", "")
+            if "input_raw" not in st.session_state and current_user.get("last_input"):
+                st.session_state.input_raw = pd.DataFrame([current_user.get("last_input")])
+                st.session_state.prediction = current_user.get("last_prediction")
+                st.session_state.probability = current_user.get("last_probability")
+
+        saved_defaults = {}
+        if "input_raw" in st.session_state:
+            try:
+                saved_defaults = st.session_state.input_raw.to_dict("records")[0]
+            except Exception:
+                saved_defaults = {}
 
         st.markdown('<div class="accent-line"></div>', unsafe_allow_html=True)
 
@@ -1371,18 +1408,18 @@ elif menu == "🔬 Prediction":
 
         with col1:
             st.markdown("##### Basic Health Values")
-            preg = st.number_input("Pregnancies", 0, 20, 1)
-            glucose = st.number_input("Glucose (mg/dL)", 50, 200, 120)
-            bp = st.number_input("Blood Pressure (mm Hg)", 30, 120, 70)
-            skin = st.number_input("Skin Thickness (mm)", 0, 100, 20)
+            preg = st.number_input("Pregnancies", 0, 20, int(saved_defaults.get("Pregnancies", 1)), key="pred_preg")
+            glucose = st.number_input("Glucose (mg/dL)", 50, 200, int(saved_defaults.get("Glucose", 120)), key="pred_glucose")
+            bp = st.number_input("Blood Pressure (mm Hg)", 30, 120, int(saved_defaults.get("BloodPressure", 70)), key="pred_bp")
+            skin = st.number_input("Skin Thickness (mm)", 0, 100, int(saved_defaults.get("SkinThickness", 20)), key="pred_skin")
     
         with col2:
             st.markdown("##### Body and Family Health Values")
-            insulin = st.number_input("Insulin (μU/mL)", 0, 300, 100)
-            bmi = st.number_input("BMI (kg/m²)", 10.0, 60.0, 25.0)
-            dpf = st.number_input("Diabetes Pedigree Function", 0.0, 3.0, 0.5)
-            default_age = int(st.session_state.active_patient_age) if st.session_state.active_patient_age else 30
-            age = st.number_input("Age (years)", 1, 100, default_age)
+            insulin = st.number_input("Insulin (μU/mL)", 0, 300, int(saved_defaults.get("Insulin", 100)), key="pred_insulin")
+            bmi = st.number_input("BMI (kg/m²)", 10.0, 60.0, float(saved_defaults.get("BMI", 25.0)), key="pred_bmi")
+            dpf = st.number_input("Diabetes Pedigree Function", 0.0, 3.0, float(saved_defaults.get("DiabetesPedigreeFunction", 0.5)), key="pred_dpf")
+            default_age = int(saved_defaults.get("Age", st.session_state.active_patient_age if st.session_state.active_patient_age else 30))
+            age = st.number_input("Age (years)", 1, 100, default_age, key="pred_age")
     
         if st.button("Run Prediction"):
             input_raw = pd.DataFrame({
@@ -1423,13 +1460,26 @@ elif menu == "🔬 Prediction":
                 st.session_state.patients_db[doctor_key][st.session_state.active_patient_id].update({
                     "name": st.session_state.active_patient_name,
                     "patient_id": st.session_state.active_patient_id,
-                    "age": st.session_state.active_patient_age,
+                    "age": age,
                     "gender": st.session_state.active_patient_gender,
                     "photo": st.session_state.patient_photo,
                     "last_input": input_raw.to_dict("records")[0],
                     "last_prediction": int(prediction[0]),
                     "last_probability": probability,
+                    "last_checked": datetime.now().strftime("%d-%m-%Y %I:%M %p"),
                 })
+                save_local_data()
+            elif current_user.get("role") == "Patient" and st.session_state.current_user:
+                st.session_state.users_db[st.session_state.current_user].update({
+                    "full_name": st.session_state.active_patient_name or current_user.get("full_name", ""),
+                    "age": age,
+                    "gender": st.session_state.active_patient_gender,
+                    "last_input": input_raw.to_dict("records")[0],
+                    "last_prediction": int(prediction[0]),
+                    "last_probability": probability,
+                    "last_checked": datetime.now().strftime("%d-%m-%Y %I:%M %p"),
+                })
+                save_local_data()
 
             st.session_state.selected_menu = "📊 Visualization"
             st.rerun()
@@ -1832,33 +1882,9 @@ elif menu == "📊 Visualization":
             with open(report_path, "rb") as pdf_file:
                 pdf_bytes = pdf_file.read()
 
-            st.success("Professional report generated successfully.")
+            st.success("Report generated successfully.")
 
-            st.markdown("""
-            <div class="card" style="border-left:5px solid #2563EB;">
-                <h4 style="margin-bottom:0.4rem;">Report Ready</h4>
-                <p style="margin-bottom:0.2rem;">Download the PDF report or share the PDF file from the browser share button.</p>
-                <p style="font-size:0.85rem; opacity:0.75;">The PDF file share button works best on mobile browsers. If desktop browser blocks file sharing, download the PDF and attach it in WhatsApp.</p>
-            </div>
-            """, unsafe_allow_html=True)
-
-            pdf_file_name = f"{patient_name_report}_professional_report.pdf"
-
-            st.download_button(
-                label="Download PDF Report",
-                data=pdf_bytes,
-                file_name=pdf_file_name,
-                mime="application/pdf"
-            )
-
-            share_caption = (
-                f"GLUCOTRACK Diabetes Prediction Report\n"
-                f"Patient Name: {patient_name_report}\n"
-                f"Patient ID: {patient_id_report}\n"
-                f"Prediction Result: {result_text}"
-            )
-            build_whatsapp_file_share_button(pdf_bytes, pdf_file_name, share_caption)
-
+            pdf_file_name = f"{patient_name_report}_report.pdf"
             whatsapp_message = quote(
                 f"GLUCOTRACK Diabetes Prediction Report\n\n"
                 f"Patient Name: {patient_name_report}\n"
@@ -1867,30 +1893,42 @@ elif menu == "📊 Visualization":
                 f"Glucose: {input_raw['Glucose'].values[0]} mg/dL\n"
                 f"BMI: {input_raw['BMI'].values[0]} kg/m²\n"
                 f"Blood Pressure: {input_raw['BloodPressure'].values[0]} mm Hg\n\n"
-                f"PDF report has been generated. Please attach the downloaded PDF if required."
+                f"PDF report has been generated. Download it and attach it in WhatsApp if direct file sharing is not supported."
             )
-
             whatsapp_url = f"https://wa.me/?text={whatsapp_message}"
 
-            st.markdown(
-                f"""
-                <a href="{whatsapp_url}" target="_blank" style="text-decoration:none;">
-                    <button style="
-                        background:linear-gradient(135deg,#16A34A,#22C55E);
-                        color:white;
-                        border:none;
-                        padding:12px 20px;
-                        border-radius:12px;
-                        cursor:pointer;
-                        font-weight:700;
-                        margin-top:10px;
-                        box-shadow:0 8px 20px rgba(34,197,94,0.25);">
-                        Share Report Summary on WhatsApp
-                    </button>
-                </a>
-                """,
-                unsafe_allow_html=True
-            )
+            with st.expander("📤 Report Share", expanded=True):
+                c_down, c_whats = st.columns(2)
+                with c_down:
+                    st.download_button(
+                        label="⬇️ Download Report",
+                        data=pdf_bytes,
+                        file_name=pdf_file_name,
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
+                with c_whats:
+                    st.markdown(
+                        f"""
+                        <a href="{whatsapp_url}" target="_blank" style="text-decoration:none;">
+                            <button style="
+                                width:100%;
+                                background:linear-gradient(135deg,#16A34A,#22C55E);
+                                color:white;
+                                border:none;
+                                padding:12px 20px;
+                                border-radius:12px;
+                                cursor:pointer;
+                                font-weight:800;
+                                box-shadow:0 8px 20px rgba(34,197,94,0.25);">
+                                🟢 Share on WhatsApp
+                            </button>
+                        </a>
+                        """,
+                        unsafe_allow_html=True
+                    )
+                st.caption("Direct PDF sharing depends on browser support. On desktop, download the PDF and attach it in WhatsApp.")
+                build_whatsapp_file_share_button(pdf_bytes, pdf_file_name, f"GlucoTrack report for {patient_name_report}: {result_text}")
 
 # ==============================
 # ABOUT PAGE
