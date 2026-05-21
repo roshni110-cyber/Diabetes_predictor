@@ -45,6 +45,7 @@ default_values = {
     "active_patient_age": None,
     "active_patient_gender": "",
     "patients_db": {},
+    "previous_menu": None,
 }
 
 for key, value in default_values.items():
@@ -106,7 +107,7 @@ try:
         st.session_state.current_user = remembered_user
         if st.session_state.selected_menu == "🏠 Welcome":
             role = st.session_state.users_db[remembered_user].get("role", "Patient")
-            st.session_state.selected_menu = "📋 Enroll Patient" if role == "Doctor" else "🔬 Prediction"
+            st.session_state.selected_menu = "👋 Doctor Home" if role == "Doctor" else "🔬 Prediction"
 except Exception:
     pass
 
@@ -116,17 +117,17 @@ except Exception:
 def apply_theme(theme):
     is_dark = theme == "Dark"
 
-    bg = "#080A1A" if is_dark else "#F6F8F4"
-    sidebar_bg = "#111036" if is_dark else "#EAF4EF"
+    bg = "#080A1A" if is_dark else "#F3F9FF"
+    sidebar_bg = "#111936" if is_dark else "#EAF6FF"
     card_bg = "#151A3D" if is_dark else "#FFFFFF"
     text_main = "#F8FAFC" if is_dark else "#0F172A"
-    text_sub = "#C4CAE8" if is_dark else "#51615A"
+    text_sub = "#C4CAE8" if is_dark else "#475569"
     text_input = "#F8FAFC" if is_dark else "#0F172A"
-    accent = "#5B5FEF" if is_dark else "#0F766E"
-    accent2 = "#14B8A6" if is_dark else "#D97706"
-    border = "#2D336A" if is_dark else "#D6E4DD"
+    accent = "#60A5FA" if is_dark else "#0284C7"
+    accent2 = "#22D3EE" if is_dark else "#0EA5E9"
+    border = "#2D336A" if is_dark else "#CFE8F9"
     input_bg = "#1B214A" if is_dark else "#FFFFFF"
-    hover_bg = "#262D63" if is_dark else "#DDF3EC"
+    hover_bg = "#262D63" if is_dark else "#E0F2FE"
 
     st.markdown(f"""
     <style>
@@ -506,6 +507,64 @@ def apply_theme(theme):
         color: #0F172A !important;
         fill: #0F172A !important;
         stroke: #0F172A !important;
+    }}
+
+
+
+    /* Professional compact controls */
+    .stButton > button, .stDownloadButton > button {{
+        min-height: 38px !important;
+        padding: 0.45rem 1.05rem !important;
+        border-radius: 11px !important;
+        font-size: 0.9rem !important;
+    }}
+
+    div[data-testid="stNumberInput"] button {{
+        background: {hover_bg} !important;
+        color: {text_main} !important;
+        border: 1px solid {border} !important;
+        border-radius: 8px !important;
+    }}
+    div[data-testid="stNumberInput"] button svg,
+    div[data-testid="stNumberInput"] svg {{
+        color: {text_main} !important;
+        fill: {text_main} !important;
+        stroke: {text_main} !important;
+        opacity: 1 !important;
+    }}
+
+    button[data-testid="stBaseButton-headerNoPadding"],
+    button[kind="headerNoPadding"],
+    div[data-testid="stSidebarCollapsedControl"] button,
+    div[data-testid="stSidebarCollapsedControl"] svg {{
+        color: {text_main} !important;
+        fill: {text_main} !important;
+        stroke: {text_main} !important;
+        background: {card_bg} !important;
+        border-radius: 10px !important;
+        opacity: 1 !important;
+    }}
+
+    .responsive-card {{
+        background: {card_bg};
+        border: 1px solid {border};
+        border-radius: 18px;
+        padding: 1.2rem;
+        box-shadow: 0 12px 32px rgba(15,23,42,0.08);
+    }}
+
+    @media (max-width: 900px) {{
+        .block-container {{ padding-left: 1rem !important; padding-right: 1rem !important; }}
+        .hero-title {{ font-size: 2.15rem !important; }}
+        .welcome-image-card {{ height: 230px !important; }}
+        .card, .feature-card, .responsive-card {{ padding: 1rem !important; }}
+        div[data-testid="column"] {{ width: 100% !important; flex: 1 1 100% !important; }}
+        .stDataFrame {{ overflow-x: auto !important; }}
+    }}
+
+    @media (min-width: 901px) and (max-width: 1200px) {{
+        .block-container {{ padding-left: 2rem !important; padding-right: 2rem !important; }}
+        .hero-title {{ font-size: 2.55rem !important; }}
     }}
 
     </style>
@@ -910,6 +969,76 @@ def show_medical_advice(glucose, bmi, bp, insulin, prediction_value):
     else:
         st.success(message)
 
+
+def get_risk_reasons(glucose, bmi, bp, insulin, prediction_value):
+    reasons = []
+    if glucose >= 126:
+        reasons.append("Glucose is in the diabetes-risk range, so it is a major reason for high risk.")
+    elif glucose >= 100:
+        reasons.append("Glucose is in the prediabetes range, so lifestyle correction is important.")
+    if bmi >= 30:
+        reasons.append("BMI is in the obesity range, which can increase insulin resistance.")
+    elif bmi >= 25:
+        reasons.append("BMI is in the overweight range, which can increase diabetes risk.")
+    if bp >= 90:
+        reasons.append("Blood pressure is high and should be monitored with medical advice.")
+    if insulin > 200:
+        reasons.append("Insulin value is high, which may indicate insulin resistance and needs clinical review.")
+    if prediction_value == 1 and not reasons:
+        reasons.append("The model detected high risk from the combined pattern of all medical inputs.")
+    if not reasons:
+        reasons.append("No major high-risk trigger is visible from these values, but routine monitoring is advised.")
+    return reasons
+
+def save_current_patient_values(current_user, preg, glucose, bp, skin, insulin, bmi, dpf, age, prediction=None, probability=None):
+    input_raw = pd.DataFrame({
+        'Pregnancies': [preg],
+        'Glucose': [glucose],
+        'BloodPressure': [bp],
+        'SkinThickness': [skin],
+        'Insulin': [insulin],
+        'BMI': [bmi],
+        'DiabetesPedigreeFunction': [dpf],
+        'Age': [age]
+    })
+    input_raw['Glucose_BMI'] = input_raw['Glucose'] * input_raw['BMI']
+    input_raw['Insulin_Glucose'] = input_raw['Insulin'] * input_raw['Glucose']
+    input_raw['Age_BMI'] = input_raw['Age'] * input_raw['BMI']
+    input_raw['BMI_Squared'] = input_raw['BMI'] ** 2
+    st.session_state.input_raw = input_raw
+    role = current_user.get("role", "Patient")
+    now = datetime.now().strftime("%d-%m-%Y %I:%M %p")
+    if role == "Doctor" and st.session_state.active_patient_id:
+        doctor_key = st.session_state.current_user
+        st.session_state.patients_db.setdefault(doctor_key, {})
+        st.session_state.patients_db[doctor_key].setdefault(st.session_state.active_patient_id, {})
+        st.session_state.patients_db[doctor_key][st.session_state.active_patient_id].update({
+            "name": st.session_state.active_patient_name,
+            "patient_id": st.session_state.active_patient_id,
+            "age": age,
+            "gender": st.session_state.active_patient_gender,
+            "photo": st.session_state.patient_photo,
+            "last_input": input_raw.to_dict("records")[0],
+            "last_prediction": None if prediction is None else int(prediction),
+            "last_probability": probability,
+            "last_checked": now,
+        })
+        save_local_data()
+        return True, "Patient data saved successfully."
+    elif role == "Patient" and st.session_state.current_user:
+        st.session_state.users_db[st.session_state.current_user].update({
+            "full_name": st.session_state.active_patient_name or current_user.get("full_name", ""),
+            "age": age,
+            "gender": st.session_state.active_patient_gender,
+            "last_input": input_raw.to_dict("records")[0],
+            "last_prediction": None if prediction is None else int(prediction),
+            "last_probability": probability,
+            "last_checked": now,
+        })
+        save_local_data()
+        return True, "Your data has been saved."
+    return False, "Please select or enroll a patient before saving."
+
 # ==============================
 # SIDEBAR / NAVIGATION
 # ==============================
@@ -936,8 +1065,9 @@ if show_sidebar:
 
         if current_role == "Doctor":
             menu_options = [
-                "👥 Patient Details",
+                "👋 Doctor Home",
                 "📋 Enroll Patient",
+                "👥 Patient Details",
                 "🔬 Prediction",
                 "📊 Visualization",
                 "ℹ️ About"
@@ -1171,6 +1301,41 @@ elif menu == "📝 Sign Up":
                 st.rerun()
 
 # ==============================
+# DOCTOR HOME PAGE
+# ==============================
+elif menu == "👋 Doctor Home":
+    if not st.session_state.logged_in:
+        st.warning("Please login first.")
+    else:
+        current = get_current_user_data()
+        if current.get("role") != "Doctor" and current.get("role") != "Admin":
+            st.warning("This page is for doctors only.")
+        else:
+            doctor_name = current.get("full_name", "Doctor")
+            doctor_key = st.session_state.current_user
+            total_patients = len(st.session_state.patients_db.get(doctor_key, {}))
+            st.markdown('<div class="accent-line"></div>', unsafe_allow_html=True)
+            st.markdown(f"## Welcome, Dr. {doctor_name}")
+            st.markdown("Manage patient enrollment, prediction, saved reports and follow-up checks from one place.")
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                st.markdown(f'<div class="responsive-card"><h3>{total_patients}</h3><p>Saved Patients</p></div>', unsafe_allow_html=True)
+            with c2:
+                st.markdown('<div class="responsive-card"><h3>ML</h3><p>Diabetes Risk Prediction</p></div>', unsafe_allow_html=True)
+            with c3:
+                st.markdown('<div class="responsive-card"><h3>PDF</h3><p>Professional Reports</p></div>', unsafe_allow_html=True)
+            st.markdown("---")
+            a, b = st.columns(2)
+            with a:
+                if st.button("➕ Enroll New Patient", use_container_width=True):
+                    st.session_state.selected_menu = "📋 Enroll Patient"
+                    st.rerun()
+            with b:
+                if st.button("👥 View Patient Details", use_container_width=True):
+                    st.session_state.selected_menu = "👥 Patient Details"
+                    st.rerun()
+
+# ==============================
 # PATIENT DETAILS PAGE
 # ==============================
 elif menu == "👥 Patient Details":
@@ -1215,7 +1380,18 @@ elif menu == "👥 Patient Details":
                 if rows:
                     st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
                     selected_id = st.selectbox("Select Patient ID to open", [r["Patient ID"] for r in rows])
-                    if st.button("Open Selected Patient in Prediction", use_container_width=True):
+                    open_col, delete_col = st.columns(2)
+                    with open_col:
+                        open_selected = st.button("Open Selected Patient in Prediction", use_container_width=True)
+                    with delete_col:
+                        delete_selected = st.button("🗑️ Delete Selected Patient", use_container_width=True)
+                    if delete_selected:
+                        if selected_id in st.session_state.patients_db.get(doctor_key, {}):
+                            del st.session_state.patients_db[doctor_key][selected_id]
+                            save_local_data()
+                            st.success("Patient record deleted successfully.")
+                            st.rerun()
+                    if open_selected:
                         saved_patient = doctor_patients.get(selected_id)
                         if saved_patient:
                             st.session_state.active_patient_name = saved_patient.get("name", "")
@@ -1266,12 +1442,12 @@ elif menu == "📋 Enroll Patient":
 
             with col1:
                 st.markdown("#### Patient Details")
-                p_name = st.text_input("Patient Full Name", placeholder="Example: Ramesh Kumar")
-                p_id = st.text_input("Patient ID", placeholder="Example: PT-20260001")
-                p_age = st.number_input("Age", 1, 120, 35)
-                p_gender = st.selectbox("Gender", ["Male", "Female", "Other"])
-                p_contact = st.text_input("Contact Number", placeholder="+91 XXXXX XXXXX")
-                p_addr = st.text_area("Address", placeholder="City, State", height=70)
+                p_name = st.text_input("Patient Full Name", placeholder="Example: Ramesh Kumar", key="enroll_name")
+                p_id = st.text_input("Patient ID", placeholder="Example: PT-20260001", key="enroll_id")
+                p_age = st.number_input("Age", 1, 120, 35, key="enroll_age")
+                p_gender = st.selectbox("Gender", ["Male", "Female", "Other"], key="enroll_gender")
+                p_contact = st.text_input("Contact Number", placeholder="+91 XXXXX XXXXX", key="enroll_contact")
+                p_addr = st.text_area("Address", placeholder="City, State", height=70, key="enroll_address")
 
             with col2:
                 st.markdown("#### Patient Photo")
@@ -1303,7 +1479,7 @@ elif menu == "📋 Enroll Patient":
                 else:
                     st.info("No photo uploaded.")
 
-                p_notes = st.text_area("Medical Notes", height=80, placeholder="Optional notes")
+                p_notes = st.text_area("Medical Notes", height=80, placeholder="Optional notes", key="enroll_notes")
 
             if st.button("Enroll Patient and Open Prediction"):
                 clean_patient_id = p_id.strip()
@@ -1374,7 +1550,11 @@ elif menu == "🔬 Prediction":
 
         with header_col:
             st.markdown("## Diabetes Risk Assessment")
-            st.markdown("Enter the patient's health values and click **Run Prediction**.")
+            st.markdown("Enter the patient's health values, save the data, then run prediction.")
+            if current_role == "Doctor":
+                if st.button("← Back to Enroll Patient", key="back_to_enroll_top"):
+                    st.session_state.selected_menu = "📋 Enroll Patient"
+                    st.rerun()
 
             patient_name = st.text_input(
                 "Patient Name",
@@ -1421,22 +1601,20 @@ elif menu == "🔬 Prediction":
             default_age = int(saved_defaults.get("Age", st.session_state.active_patient_age if st.session_state.active_patient_age else 30))
             age = st.number_input("Age (years)", 1, 100, default_age, key="pred_age")
     
-        if st.button("Run Prediction"):
-            input_raw = pd.DataFrame({
-                'Pregnancies': [preg],
-                'Glucose': [glucose],
-                'BloodPressure': [bp],
-                'SkinThickness': [skin],
-                'Insulin': [insulin],
-                'BMI': [bmi],
-                'DiabetesPedigreeFunction': [dpf],
-                'Age': [age]
-            })
+        save_col, predict_col = st.columns(2)
+        with save_col:
+            if st.button("💾 Save Patient Data", use_container_width=True):
+                ok, msg = save_current_patient_values(current_user, preg, glucose, bp, skin, insulin, bmi, dpf, age)
+                if ok:
+                    st.success(msg)
+                else:
+                    st.warning(msg)
+        with predict_col:
+            run_prediction = st.button("Run Prediction", use_container_width=True)
 
-            input_raw['Glucose_BMI'] = input_raw['Glucose'] * input_raw['BMI']
-            input_raw['Insulin_Glucose'] = input_raw['Insulin'] * input_raw['Glucose']
-            input_raw['Age_BMI'] = input_raw['Age'] * input_raw['BMI']
-            input_raw['BMI_Squared'] = input_raw['BMI'] ** 2
+        if run_prediction:
+            ok, msg = save_current_patient_values(current_user, preg, glucose, bp, skin, insulin, bmi, dpf, age)
+            input_raw = st.session_state.input_raw
 
             input_encoded = pd.get_dummies(input_raw)
             input_df = input_encoded.reindex(columns=columns, fill_value=0)
@@ -1448,38 +1626,9 @@ elif menu == "🔬 Prediction":
             except Exception:
                 probability = None
 
-            st.session_state.input_raw = input_raw
             st.session_state.prediction = prediction[0]
             st.session_state.probability = probability
-
-            # Save the latest checked values for the active doctor patient.
-            if current_user.get("role") == "Doctor" and st.session_state.active_patient_id:
-                doctor_key = st.session_state.current_user
-                st.session_state.patients_db.setdefault(doctor_key, {})
-                st.session_state.patients_db[doctor_key].setdefault(st.session_state.active_patient_id, {})
-                st.session_state.patients_db[doctor_key][st.session_state.active_patient_id].update({
-                    "name": st.session_state.active_patient_name,
-                    "patient_id": st.session_state.active_patient_id,
-                    "age": age,
-                    "gender": st.session_state.active_patient_gender,
-                    "photo": st.session_state.patient_photo,
-                    "last_input": input_raw.to_dict("records")[0],
-                    "last_prediction": int(prediction[0]),
-                    "last_probability": probability,
-                    "last_checked": datetime.now().strftime("%d-%m-%Y %I:%M %p"),
-                })
-                save_local_data()
-            elif current_user.get("role") == "Patient" and st.session_state.current_user:
-                st.session_state.users_db[st.session_state.current_user].update({
-                    "full_name": st.session_state.active_patient_name or current_user.get("full_name", ""),
-                    "age": age,
-                    "gender": st.session_state.active_patient_gender,
-                    "last_input": input_raw.to_dict("records")[0],
-                    "last_prediction": int(prediction[0]),
-                    "last_probability": probability,
-                    "last_checked": datetime.now().strftime("%d-%m-%Y %I:%M %p"),
-                })
-                save_local_data()
+            save_current_patient_values(current_user, preg, glucose, bp, skin, insulin, bmi, dpf, age, prediction[0], probability)
 
             st.session_state.selected_menu = "📊 Visualization"
             st.rerun()
@@ -1757,6 +1906,10 @@ elif menu == "📊 Visualization":
 
         if probability is not None:
             st.metric("Diabetes Risk Probability", f"{probability * 100:.2f}%")
+
+        st.markdown("### Why this result?")
+        for reason in get_risk_reasons(glucose, bmi, bp, insulin, prediction_value):
+            st.markdown(f"- {reason}")
 
         st.markdown("### Patient Health Visualization")
 
