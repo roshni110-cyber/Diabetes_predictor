@@ -597,6 +597,76 @@ def apply_theme(theme):
         .hero-title {{ font-size: 2.55rem !important; }}
     }}
 
+
+
+    /* Login and Sign Up professional layout */
+    .auth-page-wrap {{
+        max-width: 520px;
+        margin: 1.5rem auto 0 auto;
+        text-align: center;
+    }}
+    .auth-card {{
+        max-width: 500px;
+        margin: 0 auto;
+        padding: 2rem 2.2rem;
+        border-radius: 24px;
+        background: linear-gradient(145deg, rgba(255,255,255,0.92), rgba(224,247,255,0.72));
+        border: 1px solid {border};
+        box-shadow: 0 24px 65px rgba(2,132,199,0.16);
+    }}
+    .auth-title {{
+        font-size: 2.25rem;
+        font-weight: 800;
+        letter-spacing: -0.04em;
+        margin-bottom: 0.35rem;
+        color: {text_main} !important;
+        font-family: 'DM Serif Display', serif;
+    }}
+    .auth-subtitle {{
+        color: {text_sub} !important;
+        font-size: 0.92rem;
+        margin-bottom: 1.4rem;
+    }}
+    .signup-shell {{
+        max-width: 920px;
+        margin: 0 auto;
+    }}
+    .signup-card {{
+        padding: 1.6rem 1.8rem;
+        border-radius: 24px;
+        background: linear-gradient(145deg, rgba(255,255,255,0.95), rgba(232,248,255,0.78));
+        border: 1px solid {border};
+        box-shadow: 0 20px 58px rgba(2,132,199,0.14);
+    }}
+    .section-chip {{
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.32rem 0.72rem;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: {accent} !important;
+        background: rgba(0,119,182,0.10);
+        border: 1px solid rgba(0,119,182,0.18);
+        margin: 0.35rem 0 0.7rem 0;
+    }}
+    div[data-testid="stTextInput"] input,
+    div[data-testid="stNumberInput"] input,
+    div[data-testid="stSelectbox"] div[data-baseweb="select"] > div {{
+        min-height: 40px !important;
+        font-size: 0.9rem !important;
+        box-shadow: 0 6px 18px rgba(15,23,42,0.04) !important;
+    }}
+    @media (max-width: 768px) {{
+        .auth-card, .signup-card {{
+            padding: 1.2rem !important;
+            border-radius: 18px !important;
+        }}
+        .auth-title {{ font-size: 1.8rem; }}
+    }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -1210,17 +1280,25 @@ if menu == "🏠 Welcome":
 # LOGIN PAGE
 # ==============================
 elif menu == "🔐 Login":
-    st.markdown('<div class="accent-line"></div>', unsafe_allow_html=True)
-    st.markdown("## Login")
-    st.markdown("Enter your registered username and password to continue.")
+    st.markdown("""
+    <div class="auth-page-wrap">
+      <div class="accent-line"></div>
+      <div class="auth-title">Login</div>
+      <div class="auth-subtitle">Enter your registered username and password to continue.</div>
+    </div>
+    """, unsafe_allow_html=True)
 
-    login_box, _ = st.columns([1, 1])
-
-    with login_box:
+    left, center, right = st.columns([1.25, 1, 1.25])
+    with center:
+        st.markdown('<div class="auth-card">', unsafe_allow_html=True)
         login_user = st.text_input("Username", placeholder="Enter your username", key="password_login_user")
         login_password = st.text_input("Password", type="password", placeholder="Enter your password", key="password_login_pass")
 
-        if st.button("Login →", use_container_width=True):
+        b1, b2, b3 = st.columns([1, 1.15, 1])
+        with b2:
+            login_clicked = st.button("Login", use_container_width=True)
+
+        if login_clicked:
             db = st.session_state.users_db
             if login_user in db and str(db[login_user].get("password", "")) == login_password:
                 user_data = db[login_user]
@@ -1246,49 +1324,69 @@ elif menu == "🔐 Login":
                 st.rerun()
             else:
                 st.error("Invalid username or password.")
+        st.markdown('</div>', unsafe_allow_html=True)
 
 # ==============================
 # SIGN UP PAGE
 # ==============================
 elif menu == "📝 Sign Up":
-    st.markdown('<div class="accent-line"></div>', unsafe_allow_html=True)
-    st.markdown("## Create Account")
-    st.markdown("Create a Doctor or Patient account. After sign up, the correct page will open automatically.")
-    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("""
+    <div class="signup-shell" style="text-align:center;">
+      <div class="accent-line"></div>
+      <div class="auth-title">Create Account</div>
+      <div class="auth-subtitle">Create a Doctor or Patient account. The correct dashboard opens automatically after signup.</div>
+    </div>
+    """, unsafe_allow_html=True)
 
-    col_l = st.container()
-
-    with col_l:
+    sleft, smid, sright = st.columns([0.35, 1.3, 0.35])
+    with smid:
+        st.markdown('<div class="signup-card">', unsafe_allow_html=True)
 
         account_type = st.radio("Account Type", ["Patient", "Doctor"], horizontal=True)
 
-        st.markdown("#### Personal Details")
+        st.markdown('<div class="section-chip">Personal Details</div>', unsafe_allow_html=True)
         su_fullname = st.text_input("Full Name", placeholder="Enter full name", key="su_name")
 
         if account_type == "Doctor":
-            su_specialization = st.text_input("Specialization", placeholder="Example: General Physician")
-            su_license = st.text_input("Medical License ID", placeholder="Optional")
+            c1, c2 = st.columns(2)
+            with c1:
+                su_specialization = st.text_input("Specialization", placeholder="Example: General Physician")
+            with c2:
+                su_license = st.text_input("Medical License ID", placeholder="Optional")
             su_age = None
             su_gender = None
             su_patient_id = None
         else:
-            # A self-check patient does not need a Patient ID.
             su_patient_id = ""
-            su_age = st.number_input("Age", 1, 120, 25, key="su_age")
-            su_gender = st.selectbox("Gender", ["Female", "Male", "Other"], key="su_gender")
+            c1, c2 = st.columns(2)
+            with c1:
+                su_age = st.number_input("Age", 1, 120, 25, key="su_age")
+            with c2:
+                su_gender = st.selectbox("Gender", ["Female", "Male", "Other"], key="su_gender")
             su_specialization = None
             su_license = None
 
-        st.markdown("#### Contact Details")
-        su_email = st.text_input("Email ID", placeholder="Example: rose@gmail.com", key="su_email")
-        su_phone = st.text_input("Phone Number", placeholder="Example: 9876543210", key="su_phone")
+        st.markdown('<div class="section-chip">Contact Details</div>', unsafe_allow_html=True)
+        c1, c2 = st.columns(2)
+        with c1:
+            su_email = st.text_input("Email ID", placeholder="Example: rose@gmail.com", key="su_email")
+        with c2:
+            su_phone = st.text_input("Phone Number", placeholder="Example: 9876543210", key="su_phone")
 
-        st.markdown("#### Login Details")
-        su_username = st.text_input("Choose Username", placeholder="Example: rose123", key="su_user")
-        su_password = st.text_input("Create Password", type="password", placeholder="Minimum 4 characters", key="su_pass")
-        su_password2 = st.text_input("Confirm Password", type="password", placeholder="Re-enter password", key="su_pass2")
+        st.markdown('<div class="section-chip">Login Details</div>', unsafe_allow_html=True)
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            su_username = st.text_input("Username", placeholder="Example: rose123", key="su_user")
+        with c2:
+            su_password = st.text_input("Password", type="password", placeholder="Minimum 4 characters", key="su_pass")
+        with c3:
+            su_password2 = st.text_input("Confirm Password", type="password", placeholder="Re-enter password", key="su_pass2")
 
-        if st.button("Create Account", use_container_width=True):
+        b1, b2, b3 = st.columns([1.1, 0.9, 1.1])
+        with b2:
+            create_clicked = st.button("Create Account", use_container_width=True)
+
+        if create_clicked:
             db = st.session_state.users_db
 
             if not su_fullname or not su_username or not su_email or not su_phone or not su_password or not su_password2:
@@ -1349,6 +1447,7 @@ elif menu == "📝 Sign Up":
                 st.success(f"{account_type} account created successfully.")
                 st.balloons()
                 st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
 # ==============================
 # DOCTOR HOME PAGE
