@@ -1,1278 +1,2182 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import pickle
-import os
-import io
-import base64
-import tempfile
-from datetime import datetime
-from urllib.parse import quote
-
-import matplotlib.pyplot as plt
 from PIL import Image
-
+import base64
+import io
+import matplotlib.pyplot as plt
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
-
+from urllib.parse import quote
+from datetime import datetime
+import tempfile
+import os
+import random
+import re
+import json
 
 # ==============================
 # PAGE CONFIG
 # ==============================
 st.set_page_config(
-    page_title="GlucoTrack — Diabetes Risk App",
+    page_title="GlucoTrack — Diabetes Prediction System",
     page_icon="🩺",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="wide"
 )
-
 
 # ==============================
 # SESSION STATE
 # ==============================
-def init_state():
-    defaults = {
-        "logged_in": False,
-        "current_user": None,
-        "theme": "Light",
-        "selected_menu": "Welcome",
-        "patient_photo": None,
-        "selected_patient_id": None,
-        "prediction_done": False,
-        "latest_input": None,
-        "latest_result": None,
-        "latest_probability": None,
-        "patients_db": {},
+default_values = {
+    "logged_in": False,
+    "theme": "Light",
+    "patient_photo": None,
+    "current_user": None,
+    "selected_menu": "🏠 Welcome",
+    "otp_sent": False,
+    "login_otp": None,
+    "login_identifier": "",
+    "login_username": None,
+    "active_patient_name": "",
+    "active_patient_id": "",
+    "active_patient_age": None,
+    "active_patient_gender": "",
+    "patients_db": {},
+    "previous_menu": None,
+}
+
+for key, value in default_values.items():
+    if key not in st.session_state:
+        st.session_state[key] = value
+
+# ==============================
+# SIMPLE LOCAL STORAGE
+# ==============================
+# This keeps users and enrolled patients after page refresh.
+# For a real app, replace this JSON storage with a proper database.
+DATA_FILE = "glucotrack_data.json"
+
+def load_local_data():
+    default_data = {
         "users_db": {
             "admin": {
                 "password": "1234",
                 "full_name": "Administrator",
                 "role": "Doctor",
+                "account_type": "Doctor",
                 "email": "admin@gmail.com",
-                "phone": "9999999999"
+                "phone": "9999999999",
+                "specialization": "General Physician",
+                "license": "DEMO-ADMIN"
             }
-        }
+        },
+        "patients_db": {}
     }
-
-    for key, value in defaults.items():
-        if key not in st.session_state:
-            st.session_state[key] = value
-
-
-init_state()
-
-
-# ==============================
-# LOAD MODEL
-# ==============================
-@st.cache_resource
-def load_model():
     try:
-        model = pickle.load(open("diabetes_model.pkl", "rb"))
-        columns = pickle.load(open("columns.pkl", "rb"))
-        return model, columns
+        if os.path.exists(DATA_FILE):
+            with open(DATA_FILE, "r", encoding="utf-8") as f:
+                saved = json.load(f)
+            default_data["users_db"].update(saved.get("users_db", {}))
+            default_data["patients_db"].update(saved.get("patients_db", {}))
     except Exception:
-        return None, None
+        pass
+    return default_data
 
+def save_local_data():
+    try:
+        with open(DATA_FILE, "w", encoding="utf-8") as f:
+            json.dump({
+                "users_db": st.session_state.users_db,
+                "patients_db": st.session_state.patients_db
+            }, f, indent=2)
+    except Exception:
+        pass
 
-model, columns = load_model()
+local_data = load_local_data()
+st.session_state.users_db = local_data["users_db"]
+st.session_state.patients_db = local_data["patients_db"]
 
+# Page names used for browser back/forward support.
+PAGE_SLUGS = {
+    "🏠 Welcome": "welcome",
+    "🔐 Login": "login",
+    "📝 Sign Up": "signup",
+    "👋 Doctor Home": "doctor_home",
+    "📋 Enroll Patient": "enroll_patient",
+    "👥 Patient Details": "patient_details",
+    "🔬 Prediction": "prediction",
+    "📊 Visualization": "visualization",
+    "ℹ️ About": "about",
+}
+SLUG_PAGES = {v: k for k, v in PAGE_SLUGS.items()}
+
+try:
+    page_from_url = st.query_params.get("page", None)
+    if page_from_url in SLUG_PAGES:
+        st.session_state.selected_menu = SLUG_PAGES[page_from_url]
+except Exception:
+    pass
+
+# Restore login on browser refresh for this demo app.
+try:
+    remembered_user = st.query_params.get("user", None)
+    if remembered_user and remembered_user in st.session_state.users_db and not st.session_state.logged_in:
+        st.session_state.logged_in = True
+        st.session_state.current_user = remembered_user
+        if st.session_state.selected_menu == "🏠 Welcome":
+            role = st.session_state.users_db[remembered_user].get("role", "Patient")
+            st.session_state.selected_menu = "👋 Doctor Home" if role == "Doctor" else "🔬 Prediction"
+except Exception:
+    pass
 
 # ==============================
 # THEME CSS
 # ==============================
 def apply_theme(theme):
-    dark = theme == "Dark"
+    is_dark = theme == "Dark"
 
-    bg = "#EAF7FF" if not dark else "#071A2D"
-    card = "#FFFFFF" if not dark else "#102A43"
-    sidebar = "#DFF3FF" if not dark else "#0B2239"
-    text = "#0F172A" if not dark else "#F8FAFC"
-    subtext = "#475569" if not dark else "#CBD5E1"
-    border = "#BFE7FF" if not dark else "#1E3A5F"
-    input_bg = "#FFFFFF" if not dark else "#0F2A44"
-    accent = "#0284C7" if not dark else "#38BDF8"
-    accent2 = "#0EA5E9" if not dark else "#2563EB"
+    bg = "#07111F" if is_dark else "#F7FCFF"
+    sidebar_bg = "#0D1B2F" if is_dark else "#E7F6FF"
+    card_bg = "#101B33" if is_dark else "#FFFFFF"
+    text_main = "#F8FAFC" if is_dark else "#0B1F33"
+    text_sub = "#B8C7E6" if is_dark else "#486174"
+    text_input = "#F8FAFC" if is_dark else "#0B1F33"
+    accent = "#38BDF8" if is_dark else "#0077B6"
+    accent2 = "#2DD4BF" if is_dark else "#00B4D8"
+    border = "#263B5D" if is_dark else "#BFE8F8"
+    input_bg = "#13213C" if is_dark else "#FFFFFF"
+    hover_bg = "#1D3155" if is_dark else "#DDF4FF"
 
     st.markdown(f"""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500;600;700&display=swap');
 
     html, body, .stApp {{
-        background: {bg} !important;
-        color: {text} !important;
-        font-family: 'Inter', sans-serif !important;
+        background: radial-gradient(circle at top left, rgba(56,189,248,0.18), transparent 34%), linear-gradient(135deg, {bg}, {hover_bg}) !important;
+        color: {text_main} !important;
+        font-family: 'DM Sans', sans-serif;
     }}
 
     .block-container {{
+        max-width: 1180px !important;
         padding-top: 2rem !important;
-        padding-bottom: 2rem !important;
-        max-width: 1150px !important;
+        padding-left: 2rem !important;
+        padding-right: 2rem !important;
     }}
 
     section[data-testid="stSidebar"] {{
-        background: {sidebar} !important;
-        border-right: 1px solid {border} !important;
+        background: linear-gradient(180deg, {sidebar_bg}, {hover_bg}) !important;
+        border-right: 1px solid {border};
     }}
 
     section[data-testid="stSidebar"] * {{
-        color: {text} !important;
+        color: {text_main} !important;
     }}
 
-    h1, h2, h3, h4, h5, h6, p, label, span, div {{
-        color: {text} !important;
-        font-family: 'Inter', sans-serif !important;
+    h1, h2, h3, h4, h5, h6 {{
+        color: {text_main} !important;
+        font-family: 'DM Serif Display', serif;
     }}
 
-    p {{
-        color: {subtext} !important;
-        line-height: 1.6 !important;
+    p, span, div, label {{
+        color: {text_main} !important;
     }}
 
-    .main-card {{
-        background: {card};
-        border: 1px solid {border};
-        border-radius: 22px;
-        padding: 1.4rem;
-        box-shadow: 0 12px 35px rgba(2,132,199,0.12);
-        margin-bottom: 1rem;
+    .stMarkdown p {{
+        color: {text_sub} !important;
+        font-size: 0.95rem;
+        line-height: 1.7;
     }}
 
-    .mini-card {{
-        background: {card};
-        border: 1px solid {border};
-        border-radius: 18px;
-        padding: 1rem;
-        box-shadow: 0 8px 25px rgba(2,132,199,0.10);
-        height: 100%;
-    }}
-
-    .hero-box {{
-        text-align: center;
-        padding: 2rem 1rem 1rem 1rem;
-    }}
-
-    .hero-title {{
-        font-size: 3rem;
-        font-weight: 800;
-        letter-spacing: -1px;
-        margin-bottom: 0.6rem;
-    }}
-
-    .hero-sub {{
-        font-size: 1.05rem;
-        color: {subtext} !important;
-        max-width: 620px;
-        margin: auto;
-    }}
-
-    .gluco-logo {{
-        font-size: 1.7rem;
-        font-weight: 800;
-        letter-spacing: 0.03em;
-        margin-bottom: 0.2rem;
-    }}
-
-    .accent-line {{
-        height: 4px;
-        width: 72px;
-        background: linear-gradient(135deg, {accent}, {accent2});
-        border-radius: 20px;
-        margin-bottom: 1.3rem;
-    }}
-
-    div[data-testid="stTextInput"] input,
-    div[data-testid="stNumberInput"] input,
-    div[data-testid="stTextArea"] textarea {{
-        background: {input_bg} !important;
-        color: {text} !important;
+    input, textarea {{
+        background-color: {input_bg} !important;
+        color: {text_input} !important;
         border: 1px solid {border} !important;
-        border-radius: 12px !important;
-        min-height: 40px !important;
-        box-shadow: none !important;
-        font-size: 0.95rem !important;
+        border-radius: 10px !important;
     }}
 
-    div[data-testid="stTextInput"] button {{
-        background: transparent !important;
-        border: none !important;
-        box-shadow: none !important;
+    input::placeholder, textarea::placeholder {{
+        color: {text_sub} !important;
+        opacity: 0.7 !important;
     }}
 
-    div[data-baseweb="select"] > div {{
-        background: {input_bg} !important;
-        color: {text} !important;
+    .stTextInput label,
+    .stNumberInput label,
+    .stTextArea label,
+    .stSelectbox label,
+    .stRadio label,
+    .stFileUploader label {{
+        color: {text_sub} !important;
+        font-size: 0.84rem;
+        font-weight: 600;
+    }}
+
+    div[data-baseweb="select"],
+    div[data-baseweb="select"] > div,
+    div[data-baseweb="select"] div {{
+        background-color: {input_bg} !important;
+        color: {text_input} !important;
+        border-color: {border} !important;
+    }}
+
+    div[data-baseweb="select"] svg {{
+        fill: {text_input} !important;
+    }}
+
+    div[data-baseweb="popover"],
+    div[data-baseweb="popover"] > div,
+    div[data-baseweb="menu"],
+    ul[role="listbox"],
+    div[role="listbox"] {{
+        background-color: {input_bg} !important;
+        color: {text_input} !important;
         border: 1px solid {border} !important;
-        border-radius: 12px !important;
-        min-height: 40px !important;
+        border-radius: 10px !important;
     }}
 
-    .stButton > button {{
-        width: auto !important;
-        min-width: 110px !important;
-        height: 38px !important;
-        padding: 0.35rem 1.1rem !important;
-        border-radius: 12px !important;
-        font-size: 0.92rem !important;
-        font-weight: 700 !important;
+    li[role="option"],
+    div[role="option"] {{
+        background-color: {input_bg} !important;
+        color: {text_input} !important;
+    }}
+
+    li[role="option"] *,
+    div[role="option"] * {{
+        color: {text_input} !important;
+    }}
+
+    li[role="option"]:hover,
+    div[role="option"]:hover,
+    li[role="option"][aria-selected="true"],
+    div[role="option"][aria-selected="true"] {{
+        background-color: {hover_bg} !important;
+        color: {text_input} !important;
+    }}
+
+    .stFileUploader,
+    .stFileUploader section,
+    .stFileUploader section > div,
+    div[data-testid="stFileUploader"],
+    div[data-testid="stFileUploader"] section,
+    div[data-testid="stFileUploader"] section div {{
+        background-color: {input_bg} !important;
+        color: {text_input} !important;
+        border-color: {border} !important;
+    }}
+
+    .stFileUploader button,
+    div[data-testid="stFileUploader"] button {{
         background: linear-gradient(135deg, {accent}, {accent2}) !important;
         color: white !important;
         border: none !important;
-        box-shadow: 0 8px 22px rgba(2,132,199,0.25) !important;
+        border-radius: 8px !important;
         cursor: pointer !important;
-        transition: 0.2s ease !important;
+    }}
+
+    .stFileUploader small,
+    .stFileUploader span,
+    div[data-testid="stFileUploader"] small,
+    div[data-testid="stFileUploader"] span {{
+        color: {text_sub} !important;
+    }}
+
+    .stRadio div[role="radiogroup"] label {{
+        background-color: {input_bg} !important;
+        color: {text_input} !important;
+        border-radius: 10px !important;
+        padding: 8px 12px !important;
+    }}
+
+    .stRadio div[role="radiogroup"] label:hover {{
+        background-color: {hover_bg} !important;
+    }}
+
+    .stButton > button {{
+        cursor: pointer !important;
+        background: linear-gradient(135deg, {accent}, {accent2}) !important;
+        color: #FFFFFF !important;
+        border: none !important;
+        border-radius: 999px !important;
+        padding: 0.38rem 0.95rem !important;
+        min-height: 34px !important;
+        font-family: 'DM Sans', sans-serif !important;
+        font-size: 0.86rem !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.02em;
+        transition: all 0.2s ease !important;
+        box-shadow: 0 8px 22px rgba(2,132,199,0.24) !important;
     }}
 
     .stButton > button:hover {{
-        transform: translateY(-1px) !important;
-        box-shadow: 0 12px 26px rgba(2,132,199,0.34) !important;
+        transform: translateY(-1px) scale(1.01) !important;
+        box-shadow: 0 12px 28px rgba(2,132,199,0.35) !important;
+        filter: brightness(1.06) !important;
     }}
 
-    .stDownloadButton > button {{
-        width: auto !important;
-        min-width: 130px !important;
-        height: 38px !important;
-        border-radius: 12px !important;
-        font-size: 0.92rem !important;
-        font-weight: 700 !important;
-        background: linear-gradient(135deg, #0891B2, #0284C7) !important;
-        color: white !important;
-        border: none !important;
-        box-shadow: 0 8px 22px rgba(2,132,199,0.22) !important;
+    a, button, [role="button"], .stRadio label, .stSelectbox [role="option"] {{
+        cursor: pointer !important;
     }}
 
-    .login-wrapper {{
-        max-width: 420px;
-        margin: 2rem auto;
-        text-align: left;
-    }}
-
-    .login-title {{
-        text-align: center;
-        font-size: 1.8rem;
-        font-weight: 800;
-        margin-bottom: 1.2rem;
-    }}
-
-    .center-btn {{
-        text-align: center;
-        margin-top: 0.8rem;
-    }}
-
-    .metric-box {{
-        text-align: center;
-        padding: 1rem;
-        border-radius: 18px;
-        background: {card};
+    .card {{
+        background: {card_bg};
         border: 1px solid {border};
-        box-shadow: 0 8px 22px rgba(2,132,199,0.10);
+        border-radius: 16px;
+        padding: 1.8rem 2rem;
+        margin-bottom: 1.2rem;
+        box-shadow: 0 8px 24px rgba(17,24,39,0.08);
     }}
 
-    .metric-value {{
-        font-size: 1.6rem;
+    .metric-tile {{
+        background: {card_bg};
+        border: 1px solid {border};
+        border-radius: 14px;
+        padding: 1.2rem 1.4rem;
+        text-align: center;
+    }}
+
+    .metric-tile .val {{
+        font-size: 2rem;
         font-weight: 800;
         color: {accent} !important;
     }}
 
-    .metric-label {{
-        font-size: 0.82rem;
-        color: {subtext} !important;
-        text-transform: uppercase;
+    .metric-tile .lbl {{
+        font-size: 0.78rem;
+        color: {text_sub} !important;
         letter-spacing: 0.05em;
+        text-transform: uppercase;
     }}
 
-    .risk-red {{
-        background: rgba(239,68,68,0.12);
-        color: #EF4444 !important;
-        padding: 0.3rem 0.8rem;
+    .hero-title {{
+        font-family: 'DM Serif Display', serif;
+        font-size: 3rem;
+        line-height: 1.15;
+        color: {text_main} !important;
+    }}
+
+    .hero-sub {{
+        font-size: 1.05rem;
+        color: {text_sub} !important;
+        max-width: 650px;
+        line-height: 1.75;
+    }}
+
+    .accent-line {{
+        display: inline-block;
+        height: 4px;
+        width: 66px;
+        background: linear-gradient(135deg, {accent}, {accent2});
+        border-radius: 4px;
+        margin-bottom: 1rem;
+    }}
+
+    .badge {{
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+    }}
+
+    .badge-green {{ background: rgba(34,197,94,0.14); color: #22C55E !important; }}
+    .badge-red {{ background: rgba(239,68,68,0.14); color: #EF4444 !important; }}
+
+    hr {{
+        border-color: {border} !important;
+    }}
+
+    .stSuccess, .stError, .stWarning, .stInfo {{
+        border-radius: 12px !important;
+    }}
+
+    section[data-testid="stSidebar"] div[role="radiogroup"] label {{
+        border-radius: 12px !important;
+        padding: 0.65rem 0.85rem !important;
+        margin: 0.25rem 0 !important;
+        border: 1px solid transparent !important;
+        transition: all 0.2s ease !important;
+    }}
+
+    section[data-testid="stSidebar"] div[role="radiogroup"] label:hover {{
+        background: rgba(2,132,199,0.16) !important;
+        border-color: {border} !important;
+    }}
+
+    .feature-card {{
+        background: {card_bg};
+        border: 1px solid {border};
+        border-radius: 18px;
+        padding: 1.2rem;
+        min-height: 155px;
+        box-shadow: 0 10px 30px rgba(15,23,42,0.08);
+    }}
+
+    .feature-card .feature-value {{
+        font-size: 1.6rem;
+        font-weight: 800;
+        color: {accent} !important;
+        margin-bottom: 0.35rem;
+    }}
+
+    .feature-card .feature-title {{
+        font-size: 0.85rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: {text_main} !important;
+        margin-bottom: 0.4rem;
+    }}
+
+    .feature-card .feature-desc {{
+        font-size: 0.85rem;
+        line-height: 1.55;
+        color: {text_sub} !important;
+    }}
+
+
+    .welcome-hero {{
+        background: linear-gradient(135deg, rgba(29,78,216,0.14), rgba(20,184,166,0.12));
+        border: 1px solid {border};
+        border-radius: 28px;
+        padding: 3rem 3.2rem;
+        box-shadow: 0 24px 70px rgba(15,23,42,0.12);
+        position: relative;
+        overflow: hidden;
+    }}
+
+    .welcome-hero:after {{
+        content: "";
+        position: absolute;
+        right: -70px;
+        top: -70px;
+        width: 240px;
+        height: 240px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, {accent}, {accent2});
+        opacity: 0.14;
+    }}
+
+    .brand-pill {{
+        display: inline-flex;
+        align-items: center;
+        gap: 0.55rem;
+        padding: 0.5rem 0.9rem;
         border-radius: 999px;
+        background: rgba(20,184,166,0.13);
+        color: {text_main} !important;
         font-weight: 800;
-        display: inline-block;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin-bottom: 1rem;
     }}
 
-    .risk-green {{
-        background: rgba(34,197,94,0.14);
-        color: #22C55E !important;
-        padding: 0.3rem 0.8rem;
-        border-radius: 999px;
-        font-weight: 800;
-        display: inline-block;
-    }}
-
-    .whatsapp-btn {{
-        display: inline-block;
-        background: #25D366;
-        color: white !important;
-        padding: 9px 16px;
-        border-radius: 12px;
-        text-decoration: none;
-        font-weight: 800;
+    .hero-actions {{
+        margin-top: 1.5rem;
         font-size: 0.92rem;
-        margin-top: 0.5rem;
-        box-shadow: 0 8px 22px rgba(37,211,102,0.25);
+        color: {text_sub} !important;
     }}
 
-    .whatsapp-btn:hover {{
-        filter: brightness(0.95);
+    section[data-testid="stSidebar"] {{
+        box-shadow: 12px 0 35px rgba(15,23,42,0.08);
     }}
 
-    div[data-testid="stToolbar"] {{
-        visibility: visible !important;
+    section[data-testid="stSidebar"] div[role="radiogroup"] label[data-baseweb] {{
+        background: transparent !important;
+    }}
+
+
+    .welcome-hero-center {{
+        max-width: 980px;
+        margin: 0 auto;
+        text-align: center;
+        padding: 2.5rem 1rem 1rem 1rem;
+    }}
+    .welcome-text-area {{
+        max-width: 760px;
+        margin: 0 auto 1.5rem auto;
+    }}
+    .welcome-image-card {{
+        max-width: 760px;
+        height: 330px;
+        margin: 1.6rem auto 0 auto;
+        border-radius: 26px;
+        overflow: hidden;
+        border: 1px solid {border};
+        box-shadow: 0 24px 70px rgba(15,23,42,0.16);
+        background: linear-gradient(135deg, {accent}, {accent2});
+    }}
+    .welcome-image-card img {{
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        opacity: 0.94;
+    }}
+
+
+
+    /* Keep dataframe and chart toolbar icons visible in dark mode */
+    div[data-testid="stElementToolbar"] {{
+        background: rgba(255,255,255,0.92) !important;
+        border-radius: 10px !important;
+        box-shadow: 0 6px 18px rgba(0,0,0,0.12) !important;
+    }}
+    div[data-testid="stElementToolbar"] button,
+    div[data-testid="stElementToolbar"] svg {{
+        color: #0F172A !important;
+        fill: #0F172A !important;
+        stroke: #0F172A !important;
+        opacity: 1 !important;
+    }}
+    div[data-testid="stDataFrame"] button svg,
+    div[data-testid="stDataFrame"] svg {{
+        color: #0F172A !important;
+        fill: #0F172A !important;
+        stroke: #0F172A !important;
+    }}
+
+
+
+    /* Professional compact controls */
+    .stButton > button, .stDownloadButton > button {{
+        min-height: 34px !important;
+        padding: 0.36rem 0.9rem !important;
+        border-radius: 999px !important;
+        font-size: 0.84rem !important;
+    }}
+
+    div[data-testid="stNumberInput"] button {{
+        background: {hover_bg} !important;
+        color: {text_main} !important;
+        border: 1px solid {border} !important;
+        border-radius: 8px !important;
+    }}
+    div[data-testid="stNumberInput"] button svg,
+    div[data-testid="stNumberInput"] svg {{
+        color: {text_main} !important;
+        fill: {text_main} !important;
+        stroke: {text_main} !important;
         opacity: 1 !important;
     }}
 
-    div[data-testid="stToolbar"] button,
-    button[kind="icon"] {{
-        color: {text} !important;
-        background: {card} !important;
-        border: 1px solid {border} !important;
+    button[data-testid="stBaseButton-headerNoPadding"],
+    button[kind="headerNoPadding"],
+    div[data-testid="stSidebarCollapsedControl"] button,
+    div[data-testid="stSidebarCollapsedControl"] svg {{
+        color: {text_main} !important;
+        fill: {text_main} !important;
+        stroke: {text_main} !important;
+        background: {card_bg} !important;
+        border-radius: 10px !important;
+        opacity: 1 !important;
     }}
 
-    @media (max-width: 768px) {{
-        .block-container {{
-            padding: 1rem !important;
-        }}
-
-        .hero-title {{
-            font-size: 2.1rem !important;
-        }}
-
-        .login-wrapper {{
-            max-width: 95% !important;
-        }}
-
-        .stButton > button {{
-            min-width: 95px !important;
-            height: 36px !important;
-            font-size: 0.85rem !important;
-        }}
+    .responsive-card {{
+        background: {card_bg};
+        border: 1px solid {border};
+        border-radius: 18px;
+        padding: 1.2rem;
+        box-shadow: 0 12px 32px rgba(15,23,42,0.08);
     }}
+
+    @media (max-width: 900px) {{
+        .block-container {{ padding-left: 1rem !important; padding-right: 1rem !important; }}
+        .hero-title {{ font-size: 2.15rem !important; }}
+        .welcome-image-card {{ height: 230px !important; }}
+        .card, .feature-card, .responsive-card {{ padding: 1rem !important; }}
+        div[data-testid="column"] {{ width: 100% !important; flex: 1 1 100% !important; }}
+        .stDataFrame {{ overflow-x: auto !important; }}
+    }}
+
+    @media (min-width: 901px) and (max-width: 1200px) {{
+        .block-container {{ padding-left: 2rem !important; padding-right: 2rem !important; }}
+        .hero-title {{ font-size: 2.55rem !important; }}
+    }}
+
     </style>
     """, unsafe_allow_html=True)
 
+# ==============================
+# LOAD MODEL & COLUMNS
+# ==============================
+@st.cache_resource
+def load_model():
+    model = pickle.load(open("diabetes_model.pkl", "rb"))
+    columns = pickle.load(open("columns.pkl", "rb"))
+    return model, columns
 
-apply_theme(st.session_state.theme)
-
+model, columns = load_model()
 
 # ==============================
 # HELPER FUNCTIONS
 # ==============================
-def get_current_user():
-    if not st.session_state.current_user:
-        return {}
-    return st.session_state.users_db.get(st.session_state.current_user, {})
+def go_to_page(page_name):
+    st.session_state.selected_menu = page_name
+    try:
+        st.query_params["page"] = PAGE_SLUGS.get(page_name, "")
+    except Exception:
+        pass
+    st.rerun()
+
+def generate_otp():
+    return str(random.randint(100000, 999999))
 
 
-def current_role():
-    return get_current_user().get("role", "")
+def clean_phone(value):
+    return re.sub(r"\D", "", value or "")
 
 
-def current_doctor_key():
-    return st.session_state.current_user or "unknown_doctor"
 
 
-def get_doctor_patients():
-    doctor = current_doctor_key()
-    if doctor not in st.session_state.patients_db:
-        st.session_state.patients_db[doctor] = {}
-    return st.session_state.patients_db[doctor]
+def build_whatsapp_file_share_button(pdf_bytes, file_name, caption):
+    """Create a browser share button for the generated PDF.
+    Works on mobile browsers that support Web Share API file sharing.
+    Desktop WhatsApp Web may still require manual attachment.
+    """
+    pdf_b64 = base64.b64encode(pdf_bytes).decode("utf-8")
+    safe_caption = caption.replace("`", "'").replace("\\", "\\\\")
+    components.html(f"""
+    <div style="margin-top:12px;">
+      <button id="sharePdfBtn" style="
+        background:linear-gradient(135deg,#16A34A,#22C55E);
+        color:white;
+        border:none;
+        padding:12px 20px;
+        border-radius:12px;
+        cursor:pointer;
+        font-weight:700;
+        box-shadow:0 8px 20px rgba(34,197,94,0.25);
+        font-family:Arial, sans-serif;">
+        📎 Share PDF File
+      </button>
+      <p id="shareStatus" style="font-family:Arial, sans-serif; font-size:13px; color:#475569;"></p>
+    </div>
+    <script>
+    const btn = document.getElementById('sharePdfBtn');
+    const status = document.getElementById('shareStatus');
+    btn.onclick = async () => {{
+      try {{
+        const b64 = "{pdf_b64}";
+        const byteCharacters = atob(b64);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {{
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }}
+        const byteArray = new Uint8Array(byteNumbers);
+        const file = new File([byteArray], "{file_name}", {{type: 'application/pdf'}});
+        if (navigator.canShare && navigator.canShare({{ files: [file] }})) {{
+          await navigator.share({{
+            title: 'GlucoTrack Diabetes Report',
+            text: `{safe_caption}`,
+            files: [file]
+          }});
+          status.innerText = 'Share panel opened. Select WhatsApp to send the PDF.';
+        }} else {{
+          status.innerText = 'Your browser cannot directly share PDF files. Please download the report and attach it in WhatsApp.';
+        }}
+      }} catch (err) {{
+        status.innerText = 'PDF sharing is not supported here. Download the report and attach it in WhatsApp.';
+      }}
+    }};
+    </script>
+    """, height=95)
 
+def find_user_by_email_or_phone(identifier):
+    """Find a user using registered email ID or phone number."""
+    search_value = (identifier or "").strip().lower()
+    search_phone = clean_phone(search_value)
+
+    for username, user_data in st.session_state.users_db.items():
+        email = str(user_data.get("email", "")).strip().lower()
+        phone = clean_phone(str(user_data.get("phone", "")))
+
+        if search_value and search_value == email:
+            return username, user_data
+
+        if search_phone and search_phone == phone:
+            return username, user_data
+
+    return None, None
+
+def get_current_user_data():
+    if st.session_state.current_user:
+        return st.session_state.users_db.get(st.session_state.current_user, {})
+    return {}
 
 def create_chart_image(title, labels, values):
-    fig, ax = plt.subplots(figsize=(5.2, 3.2))
+    fig, ax = plt.subplots(figsize=(5, 3))
     ax.bar(labels, values)
     ax.set_title(title)
     ax.set_ylabel("Value")
-    ax.grid(axis="y", alpha=0.25)
     plt.tight_layout()
 
-    buffer = io.BytesIO()
-    fig.savefig(buffer, format="png", dpi=140, bbox_inches="tight")
-    buffer.seek(0)
+    img_buffer = io.BytesIO()
+    fig.savefig(img_buffer, format="png")
+    img_buffer.seek(0)
     plt.close(fig)
-    return buffer
+    return img_buffer
 
-
-def generate_patient_report(patient_name, patient_id, result_text, patient_data, patient_photo=None, doctor_report=False):
-    safe_name = patient_name.replace(" ", "_")
+def generate_patient_report(patient_name, patient_id, result_text, patient_data, patient_photo=None, include_photo_slot=False, report_for="Patient"):
+    """Create a professional PDF report with styled sections, tables and charts."""
+    safe_name = "".join(ch if ch.isalnum() else "_" for ch in (patient_name or "patient"))
     file_path = os.path.join(tempfile.gettempdir(), f"{safe_name}_diabetes_report.pdf")
 
     c = canvas.Canvas(file_path, pagesize=A4)
     width, height = A4
 
-    primary = colors.HexColor("#0284C7")
-    dark_text = colors.HexColor("#0F172A")
-    light_bg = colors.HexColor("#EAF7FF")
-    red = colors.HexColor("#EF4444")
-    green = colors.HexColor("#16A34A")
+    primary = colors.HexColor("#1E3A8A")
+    secondary = colors.HexColor("#2563EB")
+    accent = colors.HexColor("#7C3AED")
+    light_bg = colors.HexColor("#F8FAFC")
+    border = colors.HexColor("#D8DEE9")
+    text_dark = colors.HexColor("#111827")
+    text_muted = colors.HexColor("#6B7280")
+    success = colors.HexColor("#16A34A")
+    danger = colors.HexColor("#DC2626")
+    warning = colors.HexColor("#F59E0B")
+
+    def footer(page_no):
+        c.setStrokeColor(border)
+        c.line(45, 42, width - 45, 42)
+        c.setFillColor(text_muted)
+        c.setFont("Helvetica", 8)
+        c.drawString(50, 28, "Generated by GLUCOTRACK | Project/Demo Report")
+        c.drawRightString(width - 50, 28, f"Page {page_no}")
+
+    def header(title, subtitle=None):
+        c.setFillColor(primary)
+        c.rect(0, height - 95, width, 95, fill=True, stroke=False)
+        c.setFillColor(colors.white)
+        c.setFont("Helvetica-Bold", 22)
+        c.drawString(50, height - 45, title)
+        if subtitle:
+            c.setFont("Helvetica", 10)
+            c.drawString(50, height - 65, subtitle)
+        c.setFillColor(secondary)
+        c.roundRect(width - 165, height - 62, 115, 30, 10, fill=True, stroke=False)
+        c.setFillColor(colors.white)
+        c.setFont("Helvetica-Bold", 11)
+        c.drawCentredString(width - 107, height - 51, "GLUCOTRACK")
+
+    def section_title(y, title):
+        c.setFillColor(primary)
+        c.setFont("Helvetica-Bold", 13)
+        c.drawString(50, y, title)
+        c.setStrokeColor(secondary)
+        c.setLineWidth(2)
+        c.line(50, y - 6, 180, y - 6)
+        return y - 26
+
+    def info_card(x, y, w, h, label, value, color=primary):
+        c.setFillColor(light_bg)
+        c.setStrokeColor(border)
+        c.roundRect(x, y, w, h, 12, fill=True, stroke=True)
+        c.setFillColor(text_muted)
+        c.setFont("Helvetica-Bold", 8)
+        c.drawString(x + 14, y + h - 18, label.upper())
+        c.setFillColor(color)
+        c.setFont("Helvetica-Bold", 14)
+        c.drawString(x + 14, y + 16, str(value))
+
+    generated_on = datetime.now().strftime('%d-%m-%Y %I:%M %p')
+    glucose_value = float(patient_data["Glucose"].values[0])
+    bmi_value = float(patient_data["BMI"].values[0])
+    result_color = danger if "High" in result_text else success
+    risk_label = "HIGH RISK" if "High" in result_text else "LOW RISK"
+
+    # Page 1: Summary and clinical values
+    header("Diabetes Prediction Report", f"Generated on {generated_on}")
+
+    c.setFillColor(colors.white)
+    c.setStrokeColor(border)
+    c.roundRect(45, height - 210, width - 90, 85, 14, fill=True, stroke=True)
+
+    c.setFillColor(text_dark)
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(65, height - 150, "Patient Summary")
+    c.setFont("Helvetica", 10)
+    c.setFillColor(text_muted)
+    c.drawString(65, height - 170, f"Patient Name: {patient_name}")
+    if patient_id and str(patient_id) != "Self Check":
+        c.drawString(65, height - 188, f"Patient ID: {patient_id}")
+    else:
+        c.drawString(65, height - 188, "Patient Type: Self Check")
+    c.drawString(65, height - 206, f"Report Created By: {report_for}")
+
+    c.setFillColor(result_color)
+    c.roundRect(width - 205, height - 185, 130, 34, 10, fill=True, stroke=False)
+    c.setFillColor(colors.white)
+    c.setFont("Helvetica-Bold", 12)
+    c.drawCentredString(width - 140, height - 173, risk_label)
+
+    if include_photo_slot:
+        c.setStrokeColor(border)
+        c.setFillColor(light_bg)
+        c.roundRect(width - 95, height - 207, 55, 55, 8, fill=True, stroke=True)
+        if patient_photo:
+            try:
+                photo_bytes = base64.b64decode(patient_photo)
+                photo_img = ImageReader(io.BytesIO(photo_bytes))
+                c.drawImage(photo_img, width - 90, height - 202, 45, 45, mask='auto')
+            except Exception:
+                c.setFillColor(text_muted)
+                c.setFont("Helvetica", 7)
+                c.drawCentredString(width - 67, height - 178, "Photo")
+        else:
+            c.setFillColor(text_muted)
+            c.setFont("Helvetica", 7)
+            c.drawCentredString(width - 67, height - 178, "Photo")
+
+    y = section_title(height - 245, "Key Health Indicators")
+    info_card(50, y - 55, 115, 52, "Glucose", patient_data["Glucose"].values[0], danger if glucose_value >= 126 else primary)
+    info_card(180, y - 55, 115, 52, "BMI", patient_data["BMI"].values[0], warning if bmi_value >= 25 else primary)
+    info_card(310, y - 55, 115, 52, "Blood Pressure", patient_data["BloodPressure"].values[0], primary)
+    info_card(440, y - 55, 105, 52, "Insulin", patient_data["Insulin"].values[0], primary)
+
+    y = section_title(height - 360, "Clinical Input Values")
+    table_x = 55
+    table_y = y
+    row_h = 24
+    col_w1 = 245
+    col_w2 = 210
 
     c.setFillColor(primary)
-    c.rect(0, height - 95, width, 95, fill=1, stroke=0)
-
+    c.roundRect(table_x, table_y - row_h, col_w1 + col_w2, row_h, 8, fill=True, stroke=False)
     c.setFillColor(colors.white)
-    c.setFont("Helvetica-Bold", 22)
-    c.drawString(45, height - 45, "GlucoTrack Diabetes Report")
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(table_x + 12, table_y - 16, "Input Field")
+    c.drawString(table_x + col_w1 + 12, table_y - 16, "Patient Value")
 
+    y_cursor = table_y - row_h
     c.setFont("Helvetica", 10)
-    c.drawString(45, height - 65, f"Generated on: {datetime.now().strftime('%d-%m-%Y %I:%M %p')}")
+    for i, col in enumerate(patient_data.columns):
+        y_cursor -= row_h
+        c.setFillColor(colors.HexColor("#FFFFFF") if i % 2 == 0 else colors.HexColor("#F3F6FB"))
+        c.rect(table_x, y_cursor, col_w1 + col_w2, row_h, fill=True, stroke=False)
+        c.setStrokeColor(border)
+        c.rect(table_x, y_cursor, col_w1 + col_w2, row_h, fill=False, stroke=True)
+        c.setFillColor(text_dark)
+        c.drawString(table_x + 12, y_cursor + 8, str(col))
+        c.drawString(table_x + col_w1 + 12, y_cursor + 8, str(patient_data[col].values[0]))
 
-    c.setFillColor(light_bg)
-    c.roundRect(40, height - 245, width - 80, 120, 14, fill=1, stroke=0)
-
-    c.setFillColor(dark_text)
-    c.setFont("Helvetica-Bold", 13)
-    c.drawString(60, height - 150, "Patient Summary")
-
-    c.setFont("Helvetica", 11)
-    c.drawString(60, height - 175, f"Patient Name: {patient_name}")
-
-    if doctor_report:
-        c.drawString(60, height - 195, f"Patient ID: {patient_id}")
-    else:
-        c.drawString(60, height - 195, "Patient Type: Self Check")
-
-    c.drawString(60, height - 215, f"Prediction Result: {result_text}")
-
-    badge_color = red if "High" in result_text else green
-    c.setFillColor(badge_color)
-    c.roundRect(width - 210, height - 205, 130, 34, 14, fill=1, stroke=0)
-    c.setFillColor(colors.white)
-    c.setFont("Helvetica-Bold", 11)
-    c.drawCentredString(width - 145, height - 193, "HIGH RISK" if "High" in result_text else "LOW RISK")
-
-    if doctor_report and patient_photo:
-        try:
-            img_bytes = base64.b64decode(patient_photo)
-            img_reader = ImageReader(io.BytesIO(img_bytes))
-            c.drawImage(img_reader, width - 150, height - 165, 75, 75, mask="auto")
-        except Exception:
-            pass
-
-    c.setFillColor(dark_text)
-    c.setFont("Helvetica-Bold", 13)
-    c.drawString(45, height - 285, "Clinical Input Values")
-
-    y = height - 315
-    c.setFont("Helvetica", 10)
-
-    for col in patient_data.columns:
-        c.drawString(60, y, f"{col}: {patient_data[col].values[0]}")
-        y -= 18
-
+    c.setFillColor(text_muted)
+    c.setFont("Helvetica-Oblique", 8)
+    c.drawString(50, 72, "Note: This prediction is generated by a machine learning model and should be verified by a qualified medical professional.")
+    footer(1)
     c.showPage()
 
-    c.setFillColor(primary)
-    c.setFont("Helvetica-Bold", 18)
-    c.drawString(45, height - 55, "Health Visualization")
+    # Page 2: Visual report
+    header("Patient Data Visualization", "Visual summary of important clinical values")
 
     chart1 = create_chart_image(
-        "Key Risk Factors",
-        ["Glucose", "BMI", "BP", "Insulin"],
-        [
-            patient_data["Glucose"].values[0],
-            patient_data["BMI"].values[0],
-            patient_data["BloodPressure"].values[0],
-            patient_data["Insulin"].values[0]
-        ]
+        "Metabolic Indicators",
+        ["Glucose", "BMI", "Age"],
+        [patient_data["Glucose"].values[0], patient_data["BMI"].values[0], patient_data["Age"].values[0]]
+    )
+    chart2 = create_chart_image(
+        "Blood Pressure, Insulin and Skin",
+        ["BP", "Insulin", "Skin"],
+        [patient_data["BloodPressure"].values[0], patient_data["Insulin"].values[0], patient_data["SkinThickness"].values[0]]
     )
 
-    c.drawImage(ImageReader(chart1), 50, height - 365, 500, 260)
+    c.setFillColor(light_bg)
+    c.setStrokeColor(border)
+    c.roundRect(45, height - 360, width - 90, 240, 14, fill=True, stroke=True)
+    c.drawImage(ImageReader(chart1), 70, height - 335, 455, 190)
 
+    c.setFillColor(light_bg)
+    c.setStrokeColor(border)
+    c.roundRect(45, height - 625, width - 90, 240, 14, fill=True, stroke=True)
+    c.drawImage(ImageReader(chart2), 70, height - 600, 455, 190)
+
+    footer(2)
     c.showPage()
 
-    c.setFillColor(primary)
-    c.setFont("Helvetica-Bold", 18)
-    c.drawString(45, height - 55, "Medical Advice")
+    # Page 3: Advice
+    header("Health Advice", "General guidance based on entered values")
 
-    g = patient_data["Glucose"].values[0]
-    bmi = patient_data["BMI"].values[0]
-    insulin = patient_data["Insulin"].values[0]
-    bp = patient_data["BloodPressure"].values[0]
+    if "High" in result_text:
+        advice_title = "Recommended Action: Medical Consultation Needed"
+        advice_color = danger
+        advice_lines = [
+            "Consult a doctor or diabetes specialist as soon as possible.",
+            "Avoid excess sugar, sweet drinks, fried food and junk food.",
+            "Walk for at least 30 minutes daily, if medically suitable.",
+            "Follow a balanced diet with vegetables, protein and fiber-rich food.",
+            "Monitor fasting and post-meal glucose regularly."
+        ]
+    elif 100 <= glucose_value < 126:
+        advice_title = "Recommended Action: Lifestyle Improvement"
+        advice_color = warning
+        advice_lines = [
+            "The glucose value may be in the prediabetes range.",
+            "Reduce refined carbohydrates and sugary food items.",
+            "Maintain a healthy body weight.",
+            "Do regular physical exercise.",
+            "Repeat glucose testing after medical consultation."
+        ]
+    else:
+        advice_title = "Recommended Action: Maintain Healthy Routine"
+        advice_color = success
+        advice_lines = [
+            "Current risk appears low.",
+            "Continue a healthy lifestyle and balanced diet.",
+            "Maintain BMI in the normal range.",
+            "Avoid excess sugar and processed food.",
+            "Go for routine health checkups."
+        ]
 
-    advice = get_medical_advice(g, bmi, insulin, bp, 1 if "High" in result_text else 0)
+    c.setFillColor(advice_color)
+    c.roundRect(50, height - 165, width - 100, 48, 12, fill=True, stroke=False)
+    c.setFillColor(colors.white)
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(70, height - 145, advice_title)
 
-    y = height - 95
-    c.setFillColor(dark_text)
+    y = height - 220
     c.setFont("Helvetica", 11)
+    for i, line in enumerate(advice_lines, 1):
+        c.setFillColor(light_bg)
+        c.setStrokeColor(border)
+        c.roundRect(60, y - 10, width - 120, 32, 8, fill=True, stroke=True)
+        c.setFillColor(primary)
+        c.setFont("Helvetica-Bold", 11)
+        c.drawString(78, y, f"{i}.")
+        c.setFillColor(text_dark)
+        c.setFont("Helvetica", 11)
+        c.drawString(105, y, line)
+        y -= 42
 
-    for line in advice:
-        c.drawString(55, y, f"- {line}")
-        y -= 24
-
+    c.setFillColor(text_muted)
     c.setFont("Helvetica-Oblique", 9)
-    c.setFillColor(colors.grey)
-    c.drawString(
-        45,
-        45,
-        "Note: This report is for project/demo purpose and is not a replacement for medical diagnosis."
-    )
+    c.drawString(50, 75, "Disclaimer: This report is for project/demo purpose only and is not a replacement for medical diagnosis.")
+    footer(3)
 
     c.save()
     return file_path
 
 
-def get_risk_reason(glucose, bmi, insulin, bp, prediction):
-    reasons = []
-
-    if glucose >= 126:
-        reasons.append("high glucose level")
-    elif 100 <= glucose < 126:
-        reasons.append("prediabetic glucose range")
-
-    if bmi >= 30:
-        reasons.append("obesity range BMI")
-    elif bmi >= 25:
-        reasons.append("overweight BMI")
-
-    if insulin > 200:
-        reasons.append("high insulin level")
-
-    if bp >= 90:
-        reasons.append("high blood pressure")
-
-    if prediction == 1 and not reasons:
-        reasons.append("combined medical input pattern")
-
-    if not reasons:
-        return "No major high-risk factor is visible from the entered values."
-
-    return "Risk is mainly due to " + ", ".join(reasons) + "."
-
-
-def get_medical_advice(glucose, bmi, insulin, bp, prediction):
+def get_medical_advice(glucose, bmi, bp, insulin, prediction_value):
     advice = []
-
-    if prediction == 1:
-        advice.append("Consult a doctor or diabetologist for proper medical evaluation.")
-
+    status = "Healthy Advice"
+    level = "success"
+    if prediction_value == 1:
+        status = "High Risk Advice"
+        level = "warning"
+        advice.append("The model shows high diabetes risk. The patient should consult a doctor or diabetologist for confirmatory testing.")
     if glucose >= 126:
-        advice.append("Glucose is high. Avoid sugary drinks, sweets, and refined carbohydrates.")
-        advice.append("Monitor fasting and post-meal glucose regularly.")
+        status = "High Glucose Advice"
+        level = "warning"
+        advice.append("Glucose is in a high range. Reduce sweet drinks, sweets, refined carbs and monitor fasting/post-meal glucose.")
     elif 100 <= glucose < 126:
-        advice.append("Glucose is in the prediabetic range. Improve diet and increase physical activity.")
-        advice.append("Repeat glucose testing after medical consultation.")
+        status = "Prediabetes Advice"
+        level = "info"
+        advice.append("Glucose is in the prediabetes range. Improve diet, exercise regularly and repeat glucose testing after medical guidance.")
     else:
-        advice.append("Glucose level is currently not in a high-risk range. Maintain a healthy routine.")
+        advice.append("Glucose is currently in a safer range. Continue routine monitoring and a balanced lifestyle.")
 
     if bmi >= 30:
-        advice.append("BMI is in the obesity range. Focus on gradual weight reduction.")
+        advice.append("BMI is in the obesity range. A structured weight management plan and daily physical activity are recommended.")
     elif bmi >= 25:
-        advice.append("BMI is slightly high. Maintain calorie control and regular exercise.")
-
-    if insulin > 200:
-        advice.append("Insulin level is high. Medical review is advised.")
+        advice.append("BMI is in the overweight range. Focus on portion control, walking and reducing processed food.")
 
     if bp >= 90:
-        advice.append("Blood pressure is high. Reduce salt intake and check BP regularly.")
+        advice.append("Blood pressure value is high. Salt intake should be controlled and blood pressure should be checked regularly.")
 
-    advice.append("Walk at least 30 minutes daily if medically allowed.")
-    advice.append("This app supports screening only; final diagnosis must be done by a doctor.")
+    if insulin > 200:
+        advice.append("Insulin value is high. The doctor should review insulin resistance risk and related metabolic markers.")
 
-    return advice
+    if not advice:
+        advice.append("Maintain a healthy diet, regular exercise, good sleep and yearly health checkups.")
+    return status, level, advice
 
+def show_medical_advice(glucose, bmi, bp, insulin, prediction_value):
+    status, level, advice = get_medical_advice(glucose, bmi, bp, insulin, prediction_value)
+    message = "**" + status + ":**\n" + "\n".join([f"- {item}" for item in advice])
+    if level == "warning":
+        st.warning(message)
+    elif level == "info":
+        st.info(message)
+    else:
+        st.success(message)
+
+
+def get_risk_reasons(glucose, bmi, bp, insulin, prediction_value):
+    reasons = []
+    if glucose >= 126:
+        reasons.append("Glucose is in the diabetes-risk range, so it is a major reason for high risk.")
+    elif glucose >= 100:
+        reasons.append("Glucose is in the prediabetes range, so lifestyle correction is important.")
+    if bmi >= 30:
+        reasons.append("BMI is in the obesity range, which can increase insulin resistance.")
+    elif bmi >= 25:
+        reasons.append("BMI is in the overweight range, which can increase diabetes risk.")
+    if bp >= 90:
+        reasons.append("Blood pressure is high and should be monitored with medical advice.")
+    if insulin > 200:
+        reasons.append("Insulin value is high, which may indicate insulin resistance and needs clinical review.")
+    if prediction_value == 1 and not reasons:
+        reasons.append("The model detected high risk from the combined pattern of all medical inputs.")
+    if not reasons:
+        reasons.append("No major high-risk trigger is visible from these values, but routine monitoring is advised.")
+    return reasons
+
+def save_current_patient_values(current_user, preg, glucose, bp, skin, insulin, bmi, dpf, age, prediction=None, probability=None):
+    input_raw = pd.DataFrame({
+        'Pregnancies': [preg],
+        'Glucose': [glucose],
+        'BloodPressure': [bp],
+        'SkinThickness': [skin],
+        'Insulin': [insulin],
+        'BMI': [bmi],
+        'DiabetesPedigreeFunction': [dpf],
+        'Age': [age]
+    })
+    input_raw['Glucose_BMI'] = input_raw['Glucose'] * input_raw['BMI']
+    input_raw['Insulin_Glucose'] = input_raw['Insulin'] * input_raw['Glucose']
+    input_raw['Age_BMI'] = input_raw['Age'] * input_raw['BMI']
+    input_raw['BMI_Squared'] = input_raw['BMI'] ** 2
+    st.session_state.input_raw = input_raw
+    role = current_user.get("role", "Patient")
+    now = datetime.now().strftime("%d-%m-%Y %I:%M %p")
+    if role == "Doctor" and st.session_state.active_patient_id:
+        doctor_key = st.session_state.current_user
+        st.session_state.patients_db.setdefault(doctor_key, {})
+        st.session_state.patients_db[doctor_key].setdefault(st.session_state.active_patient_id, {})
+        st.session_state.patients_db[doctor_key][st.session_state.active_patient_id].update({
+            "name": st.session_state.active_patient_name,
+            "patient_id": st.session_state.active_patient_id,
+            "age": age,
+            "gender": st.session_state.active_patient_gender,
+            "photo": st.session_state.patient_photo,
+            "last_input": input_raw.to_dict("records")[0],
+            "last_prediction": None if prediction is None else int(prediction),
+            "last_probability": probability,
+            "last_checked": now,
+        })
+        save_local_data()
+        return True, "Patient data saved successfully."
+    elif role == "Patient" and st.session_state.current_user:
+        st.session_state.users_db[st.session_state.current_user].update({
+            "full_name": st.session_state.active_patient_name or current_user.get("full_name", ""),
+            "age": age,
+            "gender": st.session_state.active_patient_gender,
+            "last_input": input_raw.to_dict("records")[0],
+            "last_prediction": None if prediction is None else int(prediction),
+            "last_probability": probability,
+            "last_checked": now,
+        })
+        save_local_data()
+        return True, "Your data has been saved."
+    return False, "Please select or enroll a patient before saving."
 
 # ==============================
 # SIDEBAR / NAVIGATION
 # ==============================
-def render_sidebar():
-    if not st.session_state.logged_in:
-        return
+# On the first Welcome screen, the sidebar navigation is hidden.
+# After clicking Get Started, the user goes to Login and the navigation appears.
+show_sidebar = not (
+    st.session_state.selected_menu == "🏠 Welcome"
+    and not st.session_state.get("logged_in", False)
+)
 
+if show_sidebar:
     st.sidebar.markdown("""
-    <div style='padding: 1rem 0;'>
-        <div style='font-size:1.45rem;font-weight:800;'>🩺 GLUCOTRACK</div>
-        <div style='font-size:0.75rem;opacity:0.65;letter-spacing:0.08em;'>SMART HEALTH DASHBOARD</div>
+    <div style='padding: 0.6rem 0 1rem 0;'>
+      <span style='font-size:1.5rem; font-weight:800;'>🩺 GLUCOTRACK</span><br>
+      <span style='font-size:0.75rem; opacity:0.55; letter-spacing:0.08em;'>
+          SMART HEALTH DASHBOARD
+      </span>
     </div>
     """, unsafe_allow_html=True)
 
-    role = current_role()
+    if st.session_state.get("logged_in", False):
+        current_user_data = st.session_state.users_db.get(st.session_state.current_user, {})
+        current_role = current_user_data.get("role", "Patient")
 
-    if role == "Doctor":
-        menu_options = [
-            "Doctor Home",
-            "Enroll Patient",
-            "Patient Details",
-            "Prediction",
-            "Visualization",
-            "About"
-        ]
+        if current_role == "Doctor":
+            menu_options = [
+                "👋 Doctor Home",
+                "📋 Enroll Patient",
+                "👥 Patient Details",
+                "🔬 Prediction",
+                "📊 Visualization",
+                "ℹ️ About"
+            ]
+        else:
+            menu_options = [
+                "🔬 Prediction",
+                "📊 Visualization",
+                "ℹ️ About"
+            ]
     else:
         menu_options = [
-            "Prediction",
-            "Visualization",
-            "About"
+            "🔐 Login",
+            "📝 Sign Up",
+            "ℹ️ About"
         ]
 
     if st.session_state.selected_menu not in menu_options:
         st.session_state.selected_menu = menu_options[0]
 
-    st.session_state.selected_menu = st.sidebar.radio(
-        "Navigation",
-        menu_options,
-        index=menu_options.index(st.session_state.selected_menu)
-    )
-
-    st.sidebar.divider()
-
-    dark_mode = st.sidebar.toggle("🌙 Dark Mode", value=st.session_state.theme == "Dark")
-    st.session_state.theme = "Dark" if dark_mode else "Light"
-
-    st.sidebar.divider()
-
-    if st.sidebar.button("Logout", use_container_width=True):
-        st.session_state.logged_in = False
-        st.session_state.current_user = None
-        st.session_state.selected_menu = "Welcome"
-        st.session_state.selected_patient_id = None
-        st.session_state.prediction_done = False
+    default_index = menu_options.index(st.session_state.selected_menu)
+    menu = st.sidebar.radio("Navigation", menu_options, index=default_index)
+    if menu != st.session_state.selected_menu:
+        st.session_state.previous_menu = st.session_state.selected_menu
+        st.session_state.selected_menu = menu
+        try:
+            st.query_params["page"] = PAGE_SLUGS.get(menu, "")
+            if st.session_state.get("current_user"):
+                st.query_params["user"] = st.session_state.current_user
+        except Exception:
+            pass
         st.rerun()
 
+    st.sidebar.divider()
 
-render_sidebar()
+    dark_mode = st.sidebar.checkbox("🌙 Dark Mode", value=(st.session_state.theme == "Dark"))
+    st.session_state.theme = "Dark" if dark_mode else "Light"
+else:
+    menu = "🏠 Welcome"
+    st.markdown("""
+    <style>
+    section[data-testid="stSidebar"] {
+        display: none !important;
+    }
+    div[data-testid="stSidebarCollapsedControl"] {
+        display: none !important;
+    }
+
+    .welcome-hero-center {{
+        max-width: 980px;
+        margin: 0 auto;
+        text-align: center;
+        padding: 2.5rem 1rem 1rem 1rem;
+    }}
+    .welcome-text-area {{
+        max-width: 760px;
+        margin: 0 auto 1.5rem auto;
+    }}
+    .welcome-image-card {{
+        max-width: 760px;
+        height: 330px;
+        margin: 1.6rem auto 0 auto;
+        border-radius: 26px;
+        overflow: hidden;
+        border: 1px solid {border};
+        box-shadow: 0 24px 70px rgba(15,23,42,0.16);
+        background: linear-gradient(135deg, {accent}, {accent2});
+    }}
+    .welcome-image-card img {{
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        opacity: 0.94;
+    }}
+
+    </style>
+    """, unsafe_allow_html=True)
+
 apply_theme(st.session_state.theme)
-
 
 # ==============================
 # WELCOME PAGE
 # ==============================
-if not st.session_state.logged_in and st.session_state.selected_menu == "Welcome":
+if menu == "🏠 Welcome":
     st.markdown("""
-    <div class='hero-box'>
-        <div class='gluco-logo'>🩺 GLUCOTRACK</div>
-        <div class='hero-title'>Smart Diabetes Risk Assessment</div>
-        <p class='hero-sub'>
-            A simple and professional health dashboard for patient enrollment,
-            diabetes risk prediction, visualization, and report generation.
-        </p>
+    <div class="welcome-hero-center">
+      <div class="welcome-text-area">
+        <div class="brand-pill">🩺 GLUCOTRACK</div>
+        <div class="hero-title">Smarter Diabetes Risk Screening</div>
+        <div class="hero-sub">A professional machine learning dashboard for quick diabetes risk prediction, patient visualization and report generation.</div>
+      </div>
+      <div class="welcome-image-card">
+        <img src="https://images.unsplash.com/photo-1576091160550-2173dba999ef?auto=format&fit=crop&w=900&q=80" alt="Diabetes healthcare" />
+      </div>
     </div>
     """, unsafe_allow_html=True)
 
-    c1, c2, c3 = st.columns([1, 2, 1])
+    st.markdown("<br>", unsafe_allow_html=True)
+    c1, c2, c3 = st.columns([2, 1, 2])
     with c2:
-        st.markdown("""
-        <div class='main-card' style='text-align:center;'>
-            <div style='font-size:5rem;'>🩸</div>
-            <h3>Clinical Prediction Made Easier</h3>
-            <p>Designed for doctors and patients to check diabetes risk using health values.</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-        col_a, col_b = st.columns(2)
-        with col_a:
-            if st.button("Login", use_container_width=True):
-                st.session_state.selected_menu = "Login"
-                st.rerun()
-        with col_b:
-            if st.button("Create Account", use_container_width=True):
-                st.session_state.selected_menu = "Sign Up"
-                st.rerun()
-
+        if st.button("Get Started →", use_container_width=True):
+            go_to_page("🔐 Login")
 
 # ==============================
 # LOGIN PAGE
 # ==============================
-elif not st.session_state.logged_in and st.session_state.selected_menu == "Login":
-    st.markdown("<div class='login-wrapper'>", unsafe_allow_html=True)
-    st.markdown("<div class='login-title'>Login</div>", unsafe_allow_html=True)
+elif menu == "🔐 Login":
+    st.markdown('<div class="accent-line"></div>', unsafe_allow_html=True)
+    st.markdown("## Login")
+    st.markdown("Enter your registered username and password to continue.")
 
-    username = st.text_input("Username", placeholder="Enter your username")
-    password = st.text_input("Password", type="password", placeholder="Enter your password")
+    login_box, _ = st.columns([1, 1])
 
-    st.markdown("<div class='center-btn'>", unsafe_allow_html=True)
-    login_clicked = st.button("Login")
-    st.markdown("</div>", unsafe_allow_html=True)
+    with login_box:
+        login_user = st.text_input("Username", placeholder="Enter your username", key="password_login_user")
+        login_password = st.text_input("Password", type="password", placeholder="Enter your password", key="password_login_pass")
 
-    if login_clicked:
-        db = st.session_state.users_db
-        if username in db and db[username]["password"] == password:
-            st.session_state.logged_in = True
-            st.session_state.current_user = username
+        if st.button("Login →", use_container_width=True):
+            db = st.session_state.users_db
+            if login_user in db and str(db[login_user].get("password", "")) == login_password:
+                user_data = db[login_user]
+                st.session_state.logged_in = True
+                st.session_state.current_user = login_user
+                st.query_params["user"] = login_user
 
-            if db[username]["role"] == "Doctor":
-                st.session_state.selected_menu = "Doctor Home"
+                if user_data.get("role") == "Doctor":
+                    st.session_state.selected_menu = "📋 Enroll Patient"
+                else:
+                    st.session_state.active_patient_name = user_data.get("full_name", "")
+                    st.session_state.active_patient_id = user_data.get("patient_id", "")
+                    st.session_state.active_patient_age = user_data.get("age")
+                    st.session_state.active_patient_gender = user_data.get("gender", "")
+                    st.session_state.patient_photo = None
+                    st.session_state.selected_menu = "🔬 Prediction"
+
+                try:
+                    st.query_params["page"] = PAGE_SLUGS.get(st.session_state.selected_menu, "")
+                except Exception:
+                    pass
+                st.success(f"Welcome, {user_data.get('full_name', 'User')}!")
+                st.rerun()
             else:
-                st.session_state.selected_menu = "Prediction"
-
-            st.success("Login successful.")
-            st.rerun()
-        else:
-            st.error("Invalid username or password.")
-
-    st.markdown("<div style='text-align:center;margin-top:1rem;'>", unsafe_allow_html=True)
-    if st.button("Create New Account"):
-        st.session_state.selected_menu = "Sign Up"
-        st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
+                st.error("Invalid username or password.")
 
 # ==============================
 # SIGN UP PAGE
 # ==============================
-elif not st.session_state.logged_in and st.session_state.selected_menu == "Sign Up":
-    st.markdown("<div class='login-wrapper'>", unsafe_allow_html=True)
-    st.markdown("<div class='login-title'>Create Account</div>", unsafe_allow_html=True)
+elif menu == "📝 Sign Up":
+    st.markdown('<div class="accent-line"></div>', unsafe_allow_html=True)
+    st.markdown("## Create Account")
+    st.markdown("Create a Doctor or Patient account. After sign up, the correct page will open automatically.")
+    st.markdown("<br>", unsafe_allow_html=True)
 
-    account_type = st.radio("Account Type", ["Patient", "Doctor"], horizontal=True)
-    full_name = st.text_input("Full Name", placeholder="Enter full name")
-    email = st.text_input("Email", placeholder="Enter email")
-    phone = st.text_input("Phone Number", placeholder="Enter phone number")
-    username = st.text_input("Username", placeholder="Choose username")
-    password = st.text_input("Password", type="password", placeholder="Choose password")
-    confirm_password = st.text_input("Confirm Password", type="password", placeholder="Confirm password")
+    col_l = st.container()
 
-    age = None
-    gender = None
+    with col_l:
 
-    if account_type == "Patient":
-        age = st.number_input("Age", 1, 120, 25)
-        gender = st.selectbox("Gender", ["Female", "Male", "Other"])
+        account_type = st.radio("Account Type", ["Patient", "Doctor"], horizontal=True)
 
-    st.markdown("<div class='center-btn'>", unsafe_allow_html=True)
-    signup_clicked = st.button("Create Account")
-    st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("#### Personal Details")
+        su_fullname = st.text_input("Full Name", placeholder="Enter full name", key="su_name")
 
-    if signup_clicked:
-        db = st.session_state.users_db
-
-        if not full_name or not username or not password:
-            st.warning("Please fill all required fields.")
-        elif username in db:
-            st.error("Username already exists.")
-        elif password != confirm_password:
-            st.error("Passwords do not match.")
-        elif len(password) < 4:
-            st.error("Password must be at least 4 characters.")
+        if account_type == "Doctor":
+            su_specialization = st.text_input("Specialization", placeholder="Example: General Physician")
+            su_license = st.text_input("Medical License ID", placeholder="Optional")
+            su_age = None
+            su_gender = None
+            su_patient_id = None
         else:
-            db[username] = {
-                "password": password,
-                "full_name": full_name,
-                "role": account_type,
-                "email": email,
-                "phone": phone,
-                "age": age,
-                "gender": gender
-            }
+            # A self-check patient does not need a Patient ID.
+            su_patient_id = ""
+            su_age = st.number_input("Age", 1, 120, 25, key="su_age")
+            su_gender = st.selectbox("Gender", ["Female", "Male", "Other"], key="su_gender")
+            su_specialization = None
+            su_license = None
 
-            st.session_state.users_db = db
-            st.session_state.logged_in = True
-            st.session_state.current_user = username
+        st.markdown("#### Contact Details")
+        su_email = st.text_input("Email ID", placeholder="Example: rose@gmail.com", key="su_email")
+        su_phone = st.text_input("Phone Number", placeholder="Example: 9876543210", key="su_phone")
 
-            if account_type == "Doctor":
-                st.session_state.selected_menu = "Doctor Home"
+        st.markdown("#### Login Details")
+        su_username = st.text_input("Choose Username", placeholder="Example: rose123", key="su_user")
+        su_password = st.text_input("Create Password", type="password", placeholder="Minimum 4 characters", key="su_pass")
+        su_password2 = st.text_input("Confirm Password", type="password", placeholder="Re-enter password", key="su_pass2")
+
+        if st.button("Create Account", use_container_width=True):
+            db = st.session_state.users_db
+
+            if not su_fullname or not su_username or not su_email or not su_phone or not su_password or not su_password2:
+                st.warning("Please fill full name, email ID, phone number, username and password.")
+            elif "@" not in su_email or "." not in su_email:
+                st.error("Please enter a valid email ID.")
+            elif len(clean_phone(su_phone)) < 10:
+                st.error("Please enter a valid phone number.")
+            elif len(su_username) < 3:
+                st.error("Username must be at least 3 characters.")
+            elif " " in su_username:
+                st.error("Username cannot contain spaces.")
+            elif su_username in db:
+                st.error("Username already exists. Choose another username.")
+            elif len(su_password) < 4:
+                st.error("Password must be at least 4 characters.")
+            elif su_password != su_password2:
+                st.error("Passwords do not match.")
+            elif any(str(user.get("email", "")).strip().lower() == su_email.strip().lower() for user in db.values()):
+                st.error("This email ID is already registered.")
+            elif any(clean_phone(str(user.get("phone", ""))) == clean_phone(su_phone) for user in db.values()):
+                st.error("This phone number is already registered.")
             else:
-                st.session_state.selected_menu = "Prediction"
-
-            st.success("Account created successfully.")
-            st.rerun()
-
-    st.markdown("<div style='text-align:center;margin-top:1rem;'>", unsafe_allow_html=True)
-    if st.button("Back to Login"):
-        st.session_state.selected_menu = "Login"
-        st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
-
-# ==============================
-# DOCTOR HOME
-# ==============================
-elif st.session_state.logged_in and st.session_state.selected_menu == "Doctor Home":
-    st.markdown("<div class='accent-line'></div>", unsafe_allow_html=True)
-    st.title("Welcome Doctor")
-
-    doctor_name = get_current_user().get("full_name", "Doctor")
-    st.markdown(f"""
-    <div class='main-card'>
-        <h3>Hello, Dr. {doctor_name}</h3>
-        <p>
-        Use this dashboard to enroll patients, review saved patient records,
-        run diabetes risk prediction, view health visualization, and generate reports.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    c1, c2, c3 = st.columns(3)
-    patients = get_doctor_patients()
-
-    with c1:
-        st.markdown(f"""
-        <div class='metric-box'>
-            <div class='metric-value'>{len(patients)}</div>
-            <div class='metric-label'>Enrolled Patients</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with c2:
-        checked = sum(1 for p in patients.values() if p.get("last_checked"))
-        st.markdown(f"""
-        <div class='metric-box'>
-            <div class='metric-value'>{checked}</div>
-            <div class='metric-label'>Checked Patients</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with c3:
-        st.markdown("""
-        <div class='metric-box'>
-            <div class='metric-value'>ML</div>
-            <div class='metric-label'>Prediction System</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-
-# ==============================
-# ENROLL PATIENT
-# ==============================
-elif st.session_state.logged_in and st.session_state.selected_menu == "Enroll Patient":
-    if current_role() != "Doctor":
-        st.warning("Only doctors can access this page.")
-    else:
-        st.markdown("<div class='accent-line'></div>", unsafe_allow_html=True)
-        st.title("Enroll Patient")
-        st.write("Add a new patient record. Patient ID must be unique for this doctor.")
-
-        patients = get_doctor_patients()
-
-        col1, col2 = st.columns(2)
-
-        with col1:
-            patient_id = st.text_input("Patient ID", placeholder="Example: PT-001")
-            patient_name = st.text_input("Patient Name", placeholder="Enter patient name")
-            age = st.number_input("Age", 1, 120, 30)
-            gender = st.selectbox("Gender", ["Female", "Male", "Other"])
-            contact = st.text_input("Contact Number", placeholder="Enter contact number")
-
-        with col2:
-            address = st.text_area("Address", placeholder="Enter address")
-            notes = st.text_area("Notes", placeholder="Optional notes")
-            photo = st.file_uploader("Patient Photo", type=["png", "jpg", "jpeg"])
-
-            photo_b64 = None
-            if photo:
-                img = Image.open(photo)
-                img = img.resize((220, 220))
-                buf = io.BytesIO()
-                img.save(buf, format="PNG")
-                photo_b64 = base64.b64encode(buf.getvalue()).decode()
-                st.image(img, width=140)
-
-        if st.button("Enroll Patient"):
-            if not patient_id or not patient_name:
-                st.warning("Patient ID and Patient Name are required.")
-            elif patient_id in patients:
-                st.error("This Patient ID already exists for this doctor.")
-            else:
-                patients[patient_id] = {
-                    "patient_id": patient_id,
-                    "name": patient_name,
-                    "age": age,
-                    "gender": gender,
-                    "contact": contact,
-                    "address": address,
-                    "notes": notes,
-                    "photo": photo_b64,
-                    "clinical_data": {},
-                    "last_checked": "",
-                    "result": ""
+                db[su_username] = {
+                    "password": su_password,
+                    "full_name": su_fullname,
+                    "role": account_type,
+                    "account_type": account_type,
+                    "email": su_email.strip(),
+                    "phone": clean_phone(su_phone),
+                    "specialization": su_specialization,
+                    "license": su_license,
+                    "age": su_age,
+                    "gender": su_gender,
+                    "patient_id": su_patient_id
                 }
 
-                st.session_state.patients_db[current_doctor_key()] = patients
-                st.session_state.selected_patient_id = patient_id
-                st.success("Patient enrolled successfully.")
-                st.session_state.selected_menu = "Prediction"
+                st.session_state.users_db = db
+                save_local_data()
+                st.session_state.logged_in = True
+                st.session_state.current_user = su_username
+                st.query_params["user"] = su_username
+
+                if account_type == "Doctor":
+                    st.session_state.selected_menu = "📋 Enroll Patient"
+                else:
+                    st.session_state.active_patient_name = su_fullname
+                    st.session_state.active_patient_id = ""
+                    st.session_state.patient_photo = None
+                    st.session_state.active_patient_age = su_age
+                    st.session_state.active_patient_gender = su_gender
+                    st.session_state.selected_menu = "🔬 Prediction"
+
+                try:
+                    st.query_params["page"] = PAGE_SLUGS.get(st.session_state.selected_menu, "")
+                except Exception:
+                    pass
+                st.success(f"{account_type} account created successfully.")
+                st.balloons()
                 st.rerun()
 
-
 # ==============================
-# PATIENT DETAILS
+# DOCTOR HOME PAGE
 # ==============================
-elif st.session_state.logged_in and st.session_state.selected_menu == "Patient Details":
-    if current_role() != "Doctor":
-        st.warning("Only doctors can access this page.")
+elif menu == "👋 Doctor Home":
+    if not st.session_state.logged_in:
+        st.warning("Please login first.")
     else:
-        st.markdown("<div class='accent-line'></div>", unsafe_allow_html=True)
-        st.title("Patient Details")
-        st.write("These are the patients enrolled by the logged-in doctor only.")
-
-        patients = get_doctor_patients()
-
-        search = st.text_input("Search by Patient ID or Name", placeholder="Example: PT-001 or Ramesh")
-
-        rows = []
-        for pid, p in patients.items():
-            if search.lower() in pid.lower() or search.lower() in p.get("name", "").lower():
-                data = p.get("clinical_data", {})
-                rows.append({
-                    "Patient ID": pid,
-                    "Name": p.get("name", ""),
-                    "Age": p.get("age", ""),
-                    "Gender": p.get("gender", ""),
-                    "Contact": p.get("contact", ""),
-                    "Last Glucose": data.get("Glucose", ""),
-                    "Last BMI": data.get("BMI", ""),
-                    "Last Checked": p.get("last_checked", ""),
-                    "Result": p.get("result", ""),
-                    "Notes": p.get("notes", "")
-                })
-
-        if rows:
-            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-
-            patient_ids = [row["Patient ID"] for row in rows]
-            selected_id = st.selectbox("Select Patient ID to open", patient_ids)
-
-            c1, c2 = st.columns([1, 1])
-
-            with c1:
-                if st.button("Open in Prediction"):
-                    st.session_state.selected_patient_id = selected_id
-                    p = patients[selected_id]
-
-                    if p.get("clinical_data"):
-                        st.session_state.latest_input = pd.DataFrame([p["clinical_data"]])
-                        st.session_state.prediction_done = True
-
-                    st.session_state.selected_menu = "Prediction"
-                    st.rerun()
-
-            with c2:
-                if st.button("Delete Patient"):
-                    del patients[selected_id]
-                    st.session_state.patients_db[current_doctor_key()] = patients
-
-                    if st.session_state.selected_patient_id == selected_id:
-                        st.session_state.selected_patient_id = None
-
-                    st.success("Patient deleted successfully.")
-                    st.rerun()
+        current = get_current_user_data()
+        if current.get("role") != "Doctor" and current.get("role") != "Admin":
+            st.warning("This page is for doctors only.")
         else:
-            st.info("No patient record found.")
+            doctor_name = current.get("full_name", "Doctor")
+            doctor_key = st.session_state.current_user
+            total_patients = len(st.session_state.patients_db.get(doctor_key, {}))
+            st.markdown('<div class="accent-line"></div>', unsafe_allow_html=True)
+            st.markdown(f"## Welcome, Dr. {doctor_name}")
+            st.markdown("Manage patient enrollment, prediction, saved reports and follow-up checks from one place.")
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                st.markdown(f'<div class="responsive-card"><h3>{total_patients}</h3><p>Saved Patients</p></div>', unsafe_allow_html=True)
+            with c2:
+                st.markdown('<div class="responsive-card"><h3>ML</h3><p>Diabetes Risk Prediction</p></div>', unsafe_allow_html=True)
+            with c3:
+                st.markdown('<div class="responsive-card"><h3>PDF</h3><p>Professional Reports</p></div>', unsafe_allow_html=True)
+            st.markdown("---")
+            a, b = st.columns(2)
+            with a:
+                if st.button("➕ Enroll New Patient", use_container_width=True):
+                    go_to_page("📋 Enroll Patient")
+            with b:
+                if st.button("👥 View Patient Details", use_container_width=True):
+                    go_to_page("👥 Patient Details")
 
+# ==============================
+# PATIENT DETAILS PAGE
+# ==============================
+elif menu == "👥 Patient Details":
+    if not st.session_state.logged_in:
+        st.warning("Please login first.")
+    else:
+        current = get_current_user_data()
+        if current.get("role") != "Doctor" and current.get("role") != "Admin":
+            st.warning("Only doctors can view enrolled patient details.")
+        else:
+            doctor_key = st.session_state.current_user
+            doctor_patients = st.session_state.patients_db.get(doctor_key, {})
+            st.markdown('<div class="accent-line"></div>', unsafe_allow_html=True)
+            st.markdown("## Patient Details")
+            st.markdown("These are the patients enrolled by the logged-in doctor only.")
+
+            if not doctor_patients:
+                st.info("No patients enrolled yet. Add a patient from the Enroll Patient page.")
+                if st.button("Enroll New Patient"):
+                    go_to_page("📋 Enroll Patient")
+            else:
+                search_text = st.text_input("Search by Patient ID or Name", placeholder="Example: PT-001 or Ramesh")
+                rows = []
+                for pid, pdata in doctor_patients.items():
+                    if search_text.strip():
+                        q = search_text.strip().lower()
+                        if q not in pid.lower() and q not in pdata.get("name", "").lower():
+                            continue
+                    rows.append({
+                        "Patient ID": pdata.get("patient_id", pid),
+                        "Name": pdata.get("name", ""),
+                        "Age": pdata.get("age", ""),
+                        "Gender": pdata.get("gender", ""),
+                        "Contact": pdata.get("contact", ""),
+                        "Last Glucose": pdata.get("last_input", {}).get("Glucose", ""),
+                        "Last BMI": pdata.get("last_input", {}).get("BMI", ""),
+                        "Last Checked": pdata.get("last_checked", ""),
+                        "Notes": pdata.get("notes", "")
+                    })
+
+                if rows:
+                    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+                    selected_id = st.selectbox("Select Patient ID to open", [r["Patient ID"] for r in rows])
+                    open_col, delete_col = st.columns(2)
+                    with open_col:
+                        open_selected = st.button("Open Selected Patient in Prediction", use_container_width=True)
+                    with delete_col:
+                        delete_selected = st.button("🗑️ Delete Selected Patient", use_container_width=True)
+                    if delete_selected:
+                        if selected_id in st.session_state.patients_db.get(doctor_key, {}):
+                            del st.session_state.patients_db[doctor_key][selected_id]
+                            save_local_data()
+                            st.success("Patient record deleted successfully.")
+                            st.rerun()
+                    if open_selected:
+                        saved_patient = doctor_patients.get(selected_id)
+                        if saved_patient:
+                            st.session_state.active_patient_name = saved_patient.get("name", "")
+                            st.session_state.active_patient_id = saved_patient.get("patient_id", "")
+                            st.session_state.active_patient_age = saved_patient.get("age")
+                            st.session_state.active_patient_gender = saved_patient.get("gender", "")
+                            st.session_state.patient_photo = saved_patient.get("photo")
+                            last_input = saved_patient.get("last_input")
+                            if last_input:
+                                st.session_state.input_raw = pd.DataFrame([last_input])
+                                st.session_state.prediction = saved_patient.get("last_prediction")
+                                st.session_state.probability = saved_patient.get("last_probability")
+                            else:
+                                for clear_key in ["input_raw", "prediction", "probability"]:
+                                    if clear_key in st.session_state:
+                                        del st.session_state[clear_key]
+                            for widget_key in ["pred_preg", "pred_glucose", "pred_bp", "pred_skin", "pred_insulin", "pred_bmi", "pred_dpf", "pred_age"]:
+                                if widget_key in st.session_state:
+                                    del st.session_state[widget_key]
+                            go_to_page("🔬 Prediction")
+                else:
+                    st.warning("No matching patient found.")
+
+# ==============================
+# ENROLL PATIENT PAGE
+# ==============================
+elif menu == "📋 Enroll Patient":
+    if not st.session_state.logged_in:
+        st.warning("Please login first.")
+    else:
+        current = get_current_user_data()
+        if current.get("role") != "Doctor" and current.get("role") != "Admin":
+            st.warning("Only doctors or admins can access the Patient Enrollment page.")
+        else:
+            st.markdown('<div class="accent-line"></div>', unsafe_allow_html=True)
+            st.markdown("## Patient Enrollment")
+            st.markdown("Create a patient record before running the diabetes prediction.")
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            doctor_key = st.session_state.current_user
+            if doctor_key not in st.session_state.patients_db:
+                st.session_state.patients_db[doctor_key] = {}
+
+            st.markdown("### Enroll New Patient")
+
+            col1, col2 = st.columns([1, 1])
+
+            with col1:
+                st.markdown("#### Patient Details")
+                p_name = st.text_input("Patient Full Name", placeholder="Example: Ramesh Kumar", key="enroll_name")
+                p_id = st.text_input("Patient ID", placeholder="Example: PT-20260001", key="enroll_id")
+                p_age = st.number_input("Age", 1, 120, 35, key="enroll_age")
+                p_gender = st.selectbox("Gender", ["Male", "Female", "Other"], key="enroll_gender")
+                p_contact = st.text_input("Contact Number", placeholder="+91 XXXXX XXXXX", key="enroll_contact")
+                p_addr = st.text_area("Address", placeholder="City, State", height=70, key="enroll_address")
+
+            with col2:
+                st.markdown("#### Patient Photo")
+                photo = st.file_uploader("Upload Photo (JPG / PNG)", type=["jpg", "jpeg", "png"])
+
+                uploaded_photo_b64 = None
+                if photo:
+                    img = Image.open(photo)
+                    w, h = img.size
+                    side = min(w, h)
+                    left = (w - side) // 2
+                    top = (h - side) // 2
+                    img_cropped = img.crop((left, top, left + side, top + side))
+                    img_resized = img_cropped.resize((240, 240))
+
+                    buf = io.BytesIO()
+                    img_resized.save(buf, format="PNG")
+                    uploaded_photo_b64 = base64.b64encode(buf.getvalue()).decode()
+
+                    st.markdown(f"""
+                    <div style='text-align:center; margin-top:0.5rem;'>
+                      <img src="data:image/png;base64,{uploaded_photo_b64}"
+                           style="border-radius:14px; width:200px; height:200px;
+                           object-fit:cover; border:3px solid #0F766E;
+                           box-shadow:0 4px 20px rgba(15,118,110,0.35);" />
+                      <div style='font-size:0.75rem; margin-top:0.5rem; opacity:0.6;'>Photo Preview</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.info("No photo uploaded.")
+
+                p_notes = st.text_area("Medical Notes", height=80, placeholder="Optional notes", key="enroll_notes")
+
+            if st.button("Enroll Patient and Open Prediction"):
+                clean_patient_id = p_id.strip()
+                if not p_name or not clean_patient_id:
+                    st.warning("Please enter Patient Name and Patient ID.")
+                elif clean_patient_id in st.session_state.patients_db.get(doctor_key, {}):
+                    st.error("This Patient ID already exists for this doctor. Please use a unique Patient ID or open the existing patient by ID.")
+                else:
+                    patient_record = {
+                        "name": p_name,
+                        "patient_id": clean_patient_id,
+                        "age": p_age,
+                        "gender": p_gender,
+                        "contact": p_contact,
+                        "address": p_addr,
+                        "notes": p_notes,
+                        "photo": uploaded_photo_b64,
+                    }
+                    st.session_state.patients_db[doctor_key][clean_patient_id] = patient_record
+                    save_local_data()
+                    st.session_state.active_patient_name = p_name
+                    st.session_state.active_patient_id = clean_patient_id
+                    st.session_state.active_patient_age = p_age
+                    st.session_state.active_patient_gender = p_gender
+                    st.session_state.patient_photo = uploaded_photo_b64
+                    for widget_key in ["pred_preg", "pred_glucose", "pred_bp", "pred_skin", "pred_insulin", "pred_bmi", "pred_dpf", "pred_age"]:
+                        if widget_key in st.session_state:
+                            del st.session_state[widget_key]
+                    for clear_key in ["input_raw", "prediction", "probability"]:
+                        if clear_key in st.session_state:
+                            del st.session_state[clear_key]
+                    st.session_state.selected_menu = "🔬 Prediction"
+                    st.success(f"Patient {p_name} enrolled successfully.")
+                    st.rerun()
 
 # ==============================
 # PREDICTION PAGE
 # ==============================
-elif st.session_state.logged_in and st.session_state.selected_menu == "Prediction":
-    st.markdown("<div class='accent-line'></div>", unsafe_allow_html=True)
-    st.title("Diabetes Risk Assessment")
-
-    role = current_role()
-    user = get_current_user()
-    patients = get_doctor_patients() if role == "Doctor" else {}
-
-    selected_patient = None
-
-    if role == "Doctor":
-        if st.session_state.selected_patient_id and st.session_state.selected_patient_id in patients:
-            selected_patient = patients[st.session_state.selected_patient_id]
-            st.info(f"Selected Patient: {selected_patient['name']} ({st.session_state.selected_patient_id})")
-        else:
-            st.warning("Please enroll or open a patient first.")
+elif menu == "🔬 Prediction":
+    if not st.session_state.logged_in:
+        st.warning("Please login first.")
     else:
-        selected_patient = {
-            "name": user.get("full_name", "Patient"),
-            "age": user.get("age", 25),
-            "gender": user.get("gender", "Female"),
-            "patient_id": "SELF"
-        }
-        st.info(f"Patient: {selected_patient['name']}")
+        current_user = get_current_user_data()
 
-    saved_data = selected_patient.get("clinical_data", {}) if selected_patient else {}
+        current_role = current_user.get("role", "Patient")
 
-    col1, col2 = st.columns(2)
+        if current_role == "Patient":
+            st.session_state.active_patient_name = st.session_state.active_patient_name or current_user.get("full_name", "")
+            st.session_state.active_patient_id = ""
+            st.session_state.patient_photo = None
+            st.session_state.active_patient_age = current_user.get("age")
+            st.session_state.active_patient_gender = current_user.get("gender", "")
+            if "input_raw" not in st.session_state and current_user.get("last_input"):
+                st.session_state.input_raw = pd.DataFrame([current_user.get("last_input")])
+                st.session_state.prediction = current_user.get("last_prediction")
+                st.session_state.probability = current_user.get("last_probability")
 
-    with col1:
-        st.markdown("<div class='main-card'>", unsafe_allow_html=True)
-        st.subheader("Basic Medical Values")
-        preg = st.number_input("Pregnancies", 0, 20, int(saved_data.get("Pregnancies", 1)))
-        glucose = st.number_input("Glucose (mg/dL)", 50, 250, int(saved_data.get("Glucose", 120)))
-        bp = st.number_input("Blood Pressure (mm Hg)", 30, 140, int(saved_data.get("BloodPressure", 70)))
-        skin = st.number_input("Skin Thickness (mm)", 0, 100, int(saved_data.get("SkinThickness", 20)))
-        st.markdown("</div>", unsafe_allow_html=True)
+        saved_defaults = {}
+        if "input_raw" in st.session_state:
+            try:
+                saved_defaults = st.session_state.input_raw.to_dict("records")[0]
+            except Exception:
+                saved_defaults = {}
 
-    with col2:
-        st.markdown("<div class='main-card'>", unsafe_allow_html=True)
-        st.subheader("Body and Family Health")
-        insulin = st.number_input("Insulin (μU/mL)", 0, 400, int(saved_data.get("Insulin", 100)))
-        bmi = st.number_input("BMI", 10.0, 70.0, float(saved_data.get("BMI", 25.0)))
-        dpf = st.number_input("Diabetes Pedigree Function", 0.0, 3.0, float(saved_data.get("DiabetesPedigreeFunction", 0.5)))
-        age = st.number_input("Age", 1, 120, int(saved_data.get("Age", selected_patient.get("age", 30) if selected_patient else 30)))
-        st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown('<div class="accent-line"></div>', unsafe_allow_html=True)
 
-    input_raw = pd.DataFrame({
-        "Pregnancies": [preg],
-        "Glucose": [glucose],
-        "BloodPressure": [bp],
-        "SkinThickness": [skin],
-        "Insulin": [insulin],
-        "BMI": [bmi],
-        "DiabetesPedigreeFunction": [dpf],
-        "Age": [age]
-    })
+        header_col, photo_col = st.columns([4, 1])
 
-    c1, c2 = st.columns([1, 1])
-
-    with c1:
-        if st.button("Save Patient Data"):
-            clinical_data = input_raw.iloc[0].to_dict()
-
-            if role == "Doctor" and selected_patient:
-                pid = st.session_state.selected_patient_id
-                patients[pid]["clinical_data"] = clinical_data
-                patients[pid]["last_checked"] = datetime.now().strftime("%d-%m-%Y %I:%M %p")
-                st.session_state.patients_db[current_doctor_key()] = patients
+        with header_col:
+            st.markdown("## Diabetes Risk Assessment")
+            st.markdown("Enter the patient's health values, save the data, then run prediction.")
+            patient_name = st.text_input(
+                "Patient Name",
+                value=st.session_state.active_patient_name or current_user.get("full_name", ""),
+                placeholder="Enter patient name"
+            )
+            if current_role == "Doctor":
+                patient_id = st.text_input(
+                    "Patient ID",
+                    value=st.session_state.active_patient_id or "",
+                    placeholder="Enter patient ID"
+                )
+                st.session_state.active_patient_id = patient_id
             else:
-                st.session_state.users_db[st.session_state.current_user]["clinical_data"] = clinical_data
-                st.session_state.users_db[st.session_state.current_user]["last_checked"] = datetime.now().strftime("%d-%m-%Y %I:%M %p")
+                patient_id = ""
+                st.caption("Self-check mode: Patient ID is not required.")
 
-            st.success("Patient data saved successfully.")
+            st.session_state.active_patient_name = patient_name
 
-    with c2:
-        run_prediction = st.button("Run Prediction")
+        with photo_col:
+            if st.session_state.patient_photo:
+                st.markdown(f"""
+                <div style='text-align:right;'>
+                  <img src="data:image/png;base64,{st.session_state.patient_photo}"
+                       style="border-radius:12px; width:72px; height:72px;
+                       object-fit:cover; border:2px solid #0F766E;" />
+                </div>
+                """, unsafe_allow_html=True)
 
-    if run_prediction:
-        if model is None or columns is None:
-            st.error("Model files not found. Please keep diabetes_model.pkl and columns.pkl in the same folder.")
-        else:
-            model_input = input_raw.copy()
-            model_input["Glucose_BMI"] = model_input["Glucose"] * model_input["BMI"]
-            model_input["Insulin_Glucose"] = model_input["Insulin"] * model_input["Glucose"]
-            model_input["Age_BMI"] = model_input["Age"] * model_input["BMI"]
-            model_input["BMI_Squared"] = model_input["BMI"] ** 2
+        col1, col2 = st.columns(2)
 
-            encoded = pd.get_dummies(model_input)
-            input_df = encoded.reindex(columns=columns, fill_value=0)
+        with col1:
+            st.markdown("##### Basic Health Values")
+            preg = st.number_input("Pregnancies", 0, 20, int(saved_defaults.get("Pregnancies", 1)), key="pred_preg")
+            glucose = st.number_input("Glucose (mg/dL)", 50, 200, int(saved_defaults.get("Glucose", 120)), key="pred_glucose")
+            bp = st.number_input("Blood Pressure (mm Hg)", 30, 120, int(saved_defaults.get("BloodPressure", 70)), key="pred_bp")
+            skin = st.number_input("Skin Thickness (mm)", 0, 100, int(saved_defaults.get("SkinThickness", 20)), key="pred_skin")
+    
+        with col2:
+            st.markdown("##### Body and Family Health Values")
+            insulin = st.number_input("Insulin (μU/mL)", 0, 300, int(saved_defaults.get("Insulin", 100)), key="pred_insulin")
+            bmi = st.number_input("BMI (kg/m²)", 10.0, 60.0, float(saved_defaults.get("BMI", 25.0)), key="pred_bmi")
+            dpf = st.number_input("Diabetes Pedigree Function", 0.0, 3.0, float(saved_defaults.get("DiabetesPedigreeFunction", 0.5)), key="pred_dpf")
+            default_age = int(saved_defaults.get("Age", st.session_state.active_patient_age if st.session_state.active_patient_age else 30))
+            age = st.number_input("Age (years)", 1, 100, default_age, key="pred_age")
+    
+        save_col, predict_col = st.columns(2)
+        with save_col:
+            if st.button("💾 Save Patient Data", use_container_width=True):
+                ok, msg = save_current_patient_values(current_user, preg, glucose, bp, skin, insulin, bmi, dpf, age)
+                if ok:
+                    st.success(msg)
+                else:
+                    st.warning(msg)
+        with predict_col:
+            run_prediction = st.button("Run Prediction", use_container_width=True)
 
-            prediction = model.predict(input_df)[0]
+        if run_prediction:
+            ok, msg = save_current_patient_values(current_user, preg, glucose, bp, skin, insulin, bmi, dpf, age)
+            input_raw = st.session_state.input_raw
+
+            input_encoded = pd.get_dummies(input_raw)
+            input_df = input_encoded.reindex(columns=columns, fill_value=0)
+
+            prediction = model.predict(input_df)
 
             try:
                 probability = model.predict_proba(input_df)[0][1]
             except Exception:
                 probability = None
 
-            result_text = "High Risk of Diabetes" if prediction == 1 else "Low Risk of Diabetes"
+            st.session_state.prediction = prediction[0]
+            st.session_state.probability = probability
+            save_current_patient_values(current_user, preg, glucose, bp, skin, insulin, bmi, dpf, age, prediction[0], probability)
 
-            st.session_state.latest_input = input_raw
-            st.session_state.latest_result = result_text
-            st.session_state.latest_probability = probability
-            st.session_state.prediction_done = True
+            go_to_page("📊 Visualization")
 
-            clinical_data = input_raw.iloc[0].to_dict()
+        if False and "prediction" in st.session_state and "input_raw" in st.session_state:
+            input_raw = st.session_state.input_raw
+            prediction_value = st.session_state.prediction
+            probability = st.session_state.probability
 
-            if role == "Doctor" and selected_patient:
-                pid = st.session_state.selected_patient_id
-                patients[pid]["clinical_data"] = clinical_data
-                patients[pid]["last_checked"] = datetime.now().strftime("%d-%m-%Y %I:%M %p")
-                patients[pid]["result"] = result_text
-                st.session_state.patients_db[current_doctor_key()] = patients
+            st.markdown("### Prediction Result")
+            st.markdown(f"**Patient Name:** {st.session_state.active_patient_name or 'Not provided'}")
+            if current_user.get("role") == "Doctor":
+                st.markdown(f"**Patient ID:** {st.session_state.active_patient_id or 'Not provided'}")
             else:
-                st.session_state.users_db[st.session_state.current_user]["clinical_data"] = clinical_data
-                st.session_state.users_db[st.session_state.current_user]["last_checked"] = datetime.now().strftime("%d-%m-%Y %I:%M %p")
-                st.session_state.users_db[st.session_state.current_user]["result"] = result_text
+                st.markdown("**Mode:** Self-check patient report")
 
-            st.session_state.selected_menu = "Visualization"
-            st.rerun()
+            if prediction_value == 1:
+                result_text = "High Risk of Diabetes"
+                st.error("High Risk of Diabetes — Please consult a doctor.")
+                st.markdown('<span class="badge badge-red">HIGH RISK</span>', unsafe_allow_html=True)
+            else:
+                result_text = "Low Risk of Diabetes"
+                st.success("Low Risk of Diabetes.")
+                st.markdown('<span class="badge badge-green">LOW RISK</span>', unsafe_allow_html=True)
 
+            if probability is not None:
+                st.metric("Diabetes Risk Probability", f"{probability * 100:.2f}%")
+
+            st.markdown("### Patient Health Visualization")
+
+            tab1, tab2, tab3, tab4, tab5 = st.tabs([
+                "Glucose", "BMI", "Blood Pressure", "Insulin", "Overall"
+            ])
+
+            with tab1:
+                st.markdown("#### Glucose Level")
+                fig, ax = plt.subplots(figsize=(4.8, 2.3))
+                ax.barh(["Patient"], [glucose], height=0.35)
+                ax.axvspan(50, 99, alpha=0.08, label="Normal")
+                ax.axvspan(100, 125, alpha=0.08, label="Prediabetes")
+                ax.axvspan(126, 200, alpha=0.08, label="High")
+                ax.axvline(100, linestyle="--", linewidth=1)
+                ax.axvline(126, linestyle="--", linewidth=1)
+                ax.set_xlim(50, 200)
+                ax.set_xlabel("mg/dL")
+                ax.set_title("Glucose Status")
+                ax.legend(fontsize=7, loc="upper right")
+                fig.tight_layout()
+                st.pyplot(fig, use_container_width=False)
+                st.caption("Shows the patient glucose value against normal, prediabetes and high ranges.")
+
+            with tab2:
+                st.markdown("#### BMI Level")
+                fig, ax = plt.subplots(figsize=(4.8, 2.5))
+                categories = ["Under", "Normal", "Over", "Obese"]
+                limits = [18.5, 24.9, 29.9, 40]
+                ax.plot(categories, limits, marker="o", linewidth=2, label="Category limit")
+                patient_category = "Under" if bmi < 18.5 else "Normal" if bmi < 25 else "Over" if bmi < 30 else "Obese"
+                ax.scatter([patient_category], [bmi], s=90, marker="D", label="Patient BMI")
+                ax.set_ylabel("BMI")
+                ax.set_title("BMI Category Position")
+                ax.grid(True, alpha=0.25)
+                ax.legend(fontsize=7)
+                fig.tight_layout()
+                st.pyplot(fig, use_container_width=False)
+                st.caption("Shows the patient's BMI position in standard BMI categories.")
+
+            with tab3:
+                st.markdown("#### Blood Pressure Donut Chart")
+                low_part = max(min(bp, 80), 0)
+                high_part = max(120 - bp, 0)
+                patient_part = max(120 - low_part - high_part, 1)
+                values = [low_part, patient_part, high_part]
+                labels = ["Lower Zone", "Patient Zone", "Remaining Zone"]
+                fig, ax = plt.subplots(figsize=(3.8, 3.0))
+                wedges, texts, autotexts = ax.pie(
+                    values,
+                    labels=labels,
+                    autopct="%1.0f%%",
+                    startangle=90,
+                    pctdistance=0.78,
+                    wedgeprops={"width": 0.38, "edgecolor": "white"},
+                    textprops={"fontsize": 8}
+                )
+                ax.text(0, 0, f"{bp}\nmm Hg", ha="center", va="center", fontsize=12, fontweight="bold")
+                ax.set_title("Blood Pressure Status", fontsize=11)
+                fig.tight_layout()
+                st.pyplot(fig, use_container_width=False)
+                st.caption("A cleaner donut chart showing blood pressure as a compact professional visual.")
+
+            with tab4:
+                st.markdown("#### Insulin Level")
+                fig, ax = plt.subplots(figsize=(4.8, 2.5))
+                ax.fill_between([0, 1, 2], [0, insulin, 300], alpha=0.16)
+                ax.plot(["Low", "Patient", "Upper"], [0, insulin, 300], marker="o", linewidth=2)
+                ax.set_ylabel("μU/mL")
+                ax.set_title("Insulin Range View")
+                ax.grid(True, alpha=0.25)
+                fig.tight_layout()
+                st.pyplot(fig, use_container_width=False)
+                st.caption("Shows the insulin value in a simple range-style trend view.")
+
+            with tab5:
+                st.markdown("#### Overall Patient Profile")
+                values = [glucose, bp, skin, insulin, bmi, dpf, age]
+                labels = ["Glucose", "BP", "Skin", "Insulin", "BMI", "DPF", "Age"]
+
+                fig, ax = plt.subplots(figsize=(5.3, 2.8))
+                ax.plot(labels, values, marker="o", linewidth=2)
+                ax.fill_between(labels, values, alpha=0.12)
+                ax.set_title("Overall Health Profile", fontsize=11)
+                ax.set_ylabel("Values")
+                ax.grid(True, alpha=0.25)
+                plt.xticks(rotation=20)
+                fig.tight_layout()
+                st.pyplot(fig, use_container_width=False)
+                st.caption("Overall graph is kept, but made smaller and cleaner.")
+
+            st.markdown("### Medical Advice")
+
+            if glucose >= 126 or prediction_value == 1:
+                st.warning("""
+                **Diabetes Risk Advice:**
+                - Consult a doctor or diabetes specialist.
+                - Avoid excess sugar, sweet drinks and junk food.
+                - Walk for at least 30 minutes daily.
+                - Monitor glucose levels regularly.
+                - Follow a balanced diet with vegetables, protein and fiber-rich food.
+                """)
+            elif 100 <= glucose < 126:
+                st.info("""
+                **Prediabetes Advice:**
+                - Improve daily lifestyle habits.
+                - Maintain a healthy body weight.
+                - Exercise regularly.
+                - Reduce refined sugar, white rice and processed food.
+                - Repeat glucose testing after medical consultation.
+                """)
+            else:
+                st.success("""
+                **Healthy Advice:**
+                - Continue a balanced diet.
+                - Stay physically active.
+                - Go for routine health checkups.
+                - Monitor BMI and glucose level regularly.
+                """)
+
+            st.markdown("---")
+            st.markdown("## Patient Report")
+
+            patient_name_report = st.text_input(
+                "Patient Name for Report",
+                value=st.session_state.active_patient_name or "Unknown Patient"
+            )
+            if current_user.get("role") == "Doctor":
+                patient_id_report = st.text_input(
+                    "Patient ID for Report",
+                    value=st.session_state.active_patient_id or ""
+                )
+            else:
+                patient_id_report = "Self Check"
+
+            if st.button("Generate Report"):
+                report_path = generate_patient_report(
+                    patient_name_report,
+                    patient_id_report,
+                    result_text,
+                    input_raw[['Pregnancies', 'Glucose', 'BloodPressure',
+                               'SkinThickness', 'Insulin', 'BMI',
+                               'DiabetesPedigreeFunction', 'Age']],
+                    st.session_state.patient_photo,
+                    include_photo_slot=(st.session_state.users_db.get(st.session_state.current_user, {}).get("role") == "Doctor"),
+                    report_for=st.session_state.users_db.get(st.session_state.current_user, {}).get("role", "Patient")
+                )
+
+                with open(report_path, "rb") as pdf_file:
+                    pdf_bytes = pdf_file.read()
+
+                st.success("Professional report generated successfully.")
+
+                st.markdown("""
+                <div class="card" style="border-left:5px solid #2563EB;">
+                    <h4 style="margin-bottom:0.4rem;">Report Ready</h4>
+                    <p style="margin-bottom:0.2rem;">Download the PDF report or share the PDF file from the browser share button.</p>
+                    <p style="font-size:0.85rem; opacity:0.75;">The PDF file share button works best on mobile browsers. If desktop browser blocks file sharing, download the PDF and attach it in WhatsApp.</p>
+                </div>
+                """, unsafe_allow_html=True)
+
+                pdf_file_name = f"{patient_name_report}_professional_report.pdf"
+
+                st.download_button(
+                    label="Download PDF Report",
+                    data=pdf_bytes,
+                    file_name=pdf_file_name,
+                    mime="application/pdf"
+                )
+
+                share_caption = (
+                    f"GLUCOTRACK Diabetes Prediction Report\n"
+                    f"Patient Name: {patient_name_report}\n"
+                    f"Patient ID: {patient_id_report}\n"
+                    f"Prediction Result: {result_text}"
+                )
+                build_whatsapp_file_share_button(pdf_bytes, pdf_file_name, share_caption)
+
+                whatsapp_message = quote(
+                    f"GLUCOTRACK Diabetes Prediction Report\n\n"
+                    f"Patient Name: {patient_name_report}\n"
+                    f"Patient ID: {patient_id_report}\n"
+                    f"Prediction Result: {result_text}\n"
+                    f"Glucose: {input_raw['Glucose'].values[0]} mg/dL\n"
+                    f"BMI: {input_raw['BMI'].values[0]} kg/m²\n"
+                    f"Blood Pressure: {input_raw['BloodPressure'].values[0]} mm Hg\n\n"
+                    f"PDF report has been generated. Please attach the downloaded PDF if required."
+                )
+
+                whatsapp_url = f"https://wa.me/?text={whatsapp_message}"
+
+                st.markdown(
+                    f"""
+                    <a href="{whatsapp_url}" target="_blank" style="text-decoration:none;">
+                        <button style="
+                            background:linear-gradient(135deg,#16A34A,#22C55E);
+                            color:white;
+                            border:none;
+                            padding:12px 20px;
+                            border-radius:12px;
+                            cursor:pointer;
+                            font-weight:700;
+                            margin-top:10px;
+                            box-shadow:0 8px 20px rgba(34,197,94,0.25);">
+                            Share Report Summary on WhatsApp
+                        </button>
+                    </a>
+                    """,
+                    unsafe_allow_html=True
+                )
 
 # ==============================
 # VISUALIZATION PAGE
 # ==============================
-elif st.session_state.logged_in and st.session_state.selected_menu == "Visualization":
-    st.markdown("<div class='accent-line'></div>", unsafe_allow_html=True)
-    st.title("Prediction Result and Visualization")
-
-    if not st.session_state.prediction_done or st.session_state.latest_input is None:
-        st.info("Please run prediction first.")
+elif menu == "📊 Visualization":
+    if not st.session_state.logged_in:
+        st.warning("Please login first.")
+    elif "prediction" not in st.session_state or "input_raw" not in st.session_state:
+        st.info("Please complete prediction first. Open the Prediction page and click Run Prediction.")
+        if st.button("Open Prediction Page"):
+            go_to_page("🔬 Prediction")
     else:
-        data = st.session_state.latest_input
-        result_text = st.session_state.latest_result
-        probability = st.session_state.latest_probability
+        input_raw = st.session_state.input_raw
+        prediction_value = st.session_state.prediction
+        probability = st.session_state.probability
 
-        glucose = data["Glucose"].values[0]
-        bmi = data["BMI"].values[0]
-        bp = data["BloodPressure"].values[0]
-        insulin = data["Insulin"].values[0]
-        age = data["Age"].values[0]
-        dpf = data["DiabetesPedigreeFunction"].values[0]
-        skin = data["SkinThickness"].values[0]
+        glucose = input_raw["Glucose"].values[0]
+        bp = input_raw["BloodPressure"].values[0]
+        skin = input_raw["SkinThickness"].values[0]
+        insulin = input_raw["Insulin"].values[0]
+        bmi = input_raw["BMI"].values[0]
+        dpf = input_raw["DiabetesPedigreeFunction"].values[0]
+        age = input_raw["Age"].values[0]
 
-        if "High" in result_text:
-            st.error(f"⚠️ {result_text}")
-            st.markdown("<span class='risk-red'>HIGH RISK</span>", unsafe_allow_html=True)
-            prediction_value = 1
+        st.markdown("### Prediction Result")
+        st.markdown(f"**Patient Name:** {st.session_state.active_patient_name or 'Not provided'}")
+        st.markdown(f"**Patient ID:** {st.session_state.active_patient_id or 'Not provided'}")
+
+        if prediction_value == 1:
+            result_text = "High Risk of Diabetes"
+            st.error("High Risk of Diabetes — Please consult a doctor.")
+            st.markdown('<span class="badge badge-red">HIGH RISK</span>', unsafe_allow_html=True)
         else:
-            st.success(f"✅ {result_text}")
-            st.markdown("<span class='risk-green'>LOW RISK</span>", unsafe_allow_html=True)
-            prediction_value = 0
+            result_text = "Low Risk of Diabetes"
+            st.success("Low Risk of Diabetes.")
+            st.markdown('<span class="badge badge-green">LOW RISK</span>', unsafe_allow_html=True)
 
         if probability is not None:
-            st.metric("Risk Probability", f"{probability * 100:.2f}%")
+            st.metric("Diabetes Risk Probability", f"{probability * 100:.2f}%")
 
-        st.info(get_risk_reason(glucose, bmi, insulin, bp, prediction_value))
+        st.markdown("### Why this result?")
+        for reason in get_risk_reasons(glucose, bmi, bp, insulin, prediction_value):
+            st.markdown(f"- {reason}")
 
-        tab1, tab2, tab3, tab4, tab5 = st.tabs(["Glucose", "BMI", "Blood Pressure", "Insulin", "Overall"])
+        st.markdown("### Patient Health Visualization")
+
+        tab1, tab2, tab3, tab4, tab5 = st.tabs([
+            "Glucose", "BMI", "Blood Pressure", "Insulin", "Overall"
+        ])
 
         with tab1:
-            fig, ax = plt.subplots(figsize=(5.5, 3.2))
-            ranges = ["Normal", "Prediabetic", "High", "Patient"]
-            values = [99, 125, 160, glucose]
-            ax.plot(ranges, values, marker="o", linewidth=2.5)
-            ax.axhline(100, linestyle="--", alpha=0.5)
-            ax.axhline(126, linestyle="--", alpha=0.5)
-            ax.set_title("Glucose Risk Range")
-            ax.set_ylabel("mg/dL")
-            ax.grid(alpha=0.25)
+            st.markdown("#### Glucose Risk Meter")
+            fig, ax = plt.subplots(figsize=(5.0, 1.9))
+            ax.set_xlim(70, 200)
+            ax.set_ylim(0, 1)
+            ax.hlines(0.5, 70, 99, linewidth=10, alpha=0.35, label="Normal")
+            ax.hlines(0.5, 100, 125, linewidth=10, alpha=0.35, label="Prediabetes")
+            ax.hlines(0.5, 126, 200, linewidth=10, alpha=0.35, label="High")
+            ax.scatter([glucose], [0.5], s=220, marker="v", zorder=5)
+            ax.text(glucose, 0.72, f"{glucose} mg/dL", ha="center", fontsize=10, fontweight="bold")
+            ax.set_yticks([])
+            ax.set_xlabel("Glucose range")
+            ax.set_title("Doctor-Friendly Glucose Range Meter", fontsize=11)
+            ax.spines[["left", "right", "top"]].set_visible(False)
+            ax.legend(fontsize=7, loc="lower center", ncol=3, bbox_to_anchor=(0.5, -0.55))
+            fig.tight_layout()
             st.pyplot(fig, use_container_width=False)
+            st.caption("The marker shows exactly where the patient's glucose falls: normal, prediabetic or high.")
 
         with tab2:
-            fig, ax = plt.subplots(figsize=(5.5, 3.2))
-            labels = ["Underweight", "Normal", "Overweight", "Obese", "Patient"]
-            values = [18.5, 24.9, 29.9, 35, bmi]
-            ax.plot(labels, values, marker="s", linewidth=2.2)
-            ax.set_title("BMI Category Comparison")
+            st.markdown("#### BMI Level")
+            fig, ax = plt.subplots(figsize=(4.8, 2.5))
+            categories = ["Under", "Normal", "Over", "Obese"]
+            limits = [18.5, 24.9, 29.9, 40]
+            ax.plot(categories, limits, marker="o", linewidth=2, label="Category limit")
+            patient_category = "Under" if bmi < 18.5 else "Normal" if bmi < 25 else "Over" if bmi < 30 else "Obese"
+            ax.scatter([patient_category], [bmi], s=90, marker="D", label="Patient BMI")
             ax.set_ylabel("BMI")
-            ax.grid(alpha=0.25)
-            plt.xticks(rotation=20)
+            ax.set_title("BMI Category Position")
+            ax.grid(True, alpha=0.25)
+            ax.legend(fontsize=7)
+            fig.tight_layout()
             st.pyplot(fig, use_container_width=False)
+            st.caption("Shows the patient's BMI position in standard BMI categories.")
 
         with tab3:
-            fig, ax = plt.subplots(figsize=(5.5, 3.2))
-            ax.barh(["Patient BP"], [bp])
-            ax.axvline(80, linestyle="--", label="Normal limit")
-            ax.set_title("Blood Pressure Level")
-            ax.set_xlabel("mm Hg")
-            ax.legend()
+            st.markdown("#### Blood Pressure Donut Chart")
+            low_part = max(min(bp, 80), 0)
+            high_part = max(120 - bp, 0)
+            patient_part = max(120 - low_part - high_part, 1)
+            values = [low_part, patient_part, high_part]
+            labels = ["Lower Zone", "Patient Zone", "Remaining Zone"]
+            fig, ax = plt.subplots(figsize=(3.8, 3.0))
+            wedges, texts, autotexts = ax.pie(
+                values,
+                labels=labels,
+                autopct="%1.0f%%",
+                startangle=90,
+                pctdistance=0.78,
+                wedgeprops={"width": 0.38, "edgecolor": "white"},
+                textprops={"fontsize": 8}
+            )
+            ax.text(0, 0, f"{bp}\nmm Hg", ha="center", va="center", fontsize=12, fontweight="bold")
+            ax.set_title("Blood Pressure Status", fontsize=11)
+            fig.tight_layout()
             st.pyplot(fig, use_container_width=False)
+            st.caption("A cleaner donut chart showing blood pressure as a compact professional visual.")
 
         with tab4:
-            fig, ax = plt.subplots(figsize=(5.5, 3.2))
-            ax.scatter([glucose], [insulin], s=120)
-            ax.set_title("Insulin vs Glucose")
-            ax.set_xlabel("Glucose")
-            ax.set_ylabel("Insulin")
-            ax.grid(alpha=0.25)
+            st.markdown("#### Insulin Level")
+            fig, ax = plt.subplots(figsize=(4.8, 2.5))
+            ax.fill_between([0, 1, 2], [0, insulin, 300], alpha=0.16)
+            ax.plot(["Low", "Patient", "Upper"], [0, insulin, 300], marker="o", linewidth=2)
+            ax.set_ylabel("μU/mL")
+            ax.set_title("Insulin Range View")
+            ax.grid(True, alpha=0.25)
+            fig.tight_layout()
             st.pyplot(fig, use_container_width=False)
+            st.caption("Shows the insulin value in a simple range-style trend view.")
 
         with tab5:
-            fig, ax = plt.subplots(figsize=(5.8, 3.4))
-            labels = ["Glucose", "BP", "Skin", "Insulin", "BMI", "DPF", "Age"]
+            st.markdown("#### Overall Patient Profile")
             values = [glucose, bp, skin, insulin, bmi, dpf, age]
-            ax.plot(labels, values, marker="o", linewidth=2.5)
-            ax.fill_between(labels, values, alpha=0.15)
-            ax.set_title("Overall Health Profile")
+            labels = ["Glucose", "BP", "Skin", "Insulin", "BMI", "DPF", "Age"]
+
+            fig, ax = plt.subplots(figsize=(5.3, 2.8))
+            ax.plot(labels, values, marker="o", linewidth=2)
+            ax.fill_between(labels, values, alpha=0.12)
+            ax.set_title("Overall Health Profile", fontsize=11)
             ax.set_ylabel("Values")
-            ax.grid(alpha=0.25)
+            ax.grid(True, alpha=0.25)
             plt.xticks(rotation=20)
+            fig.tight_layout()
             st.pyplot(fig, use_container_width=False)
+            st.caption("Overall graph is kept, but made smaller and cleaner.")
 
         st.markdown("### Medical Advice")
-        advice = get_medical_advice(glucose, bmi, insulin, bp, prediction_value)
-        for item in advice:
-            st.write(f"• {item}")
+
+        show_medical_advice(glucose, bmi, bp, insulin, prediction_value)
 
         st.markdown("---")
-        st.markdown("### Report Share")
+        st.markdown("## Patient Report")
 
-        role = current_role()
-
-        if role == "Doctor" and st.session_state.selected_patient_id:
-            patients = get_doctor_patients()
-            patient = patients.get(st.session_state.selected_patient_id, {})
-            patient_name_report = patient.get("name", "Unknown Patient")
-            patient_id_report = st.session_state.selected_patient_id
-            patient_photo_report = patient.get("photo")
-            doctor_report = True
-        else:
-            user = get_current_user()
-            patient_name_report = user.get("full_name", "Patient")
-            patient_id_report = "SELF"
-            patient_photo_report = None
-            doctor_report = False
+        patient_name_report = st.text_input(
+            "Patient Name for Report",
+            value=st.session_state.active_patient_name or "Unknown Patient"
+        )
+        patient_id_report = st.text_input(
+            "Patient ID for Report",
+            value=st.session_state.active_patient_id or "PT-001"
+        )
 
         if st.button("Generate Report"):
             report_path = generate_patient_report(
                 patient_name_report,
                 patient_id_report,
                 result_text,
-                data,
-                patient_photo_report,
-                doctor_report
+                input_raw[['Pregnancies', 'Glucose', 'BloodPressure',
+                           'SkinThickness', 'Insulin', 'BMI',
+                           'DiabetesPedigreeFunction', 'Age']],
+                st.session_state.patient_photo,
+                include_photo_slot=(st.session_state.users_db.get(st.session_state.current_user, {}).get("role") == "Doctor"),
+                report_for=st.session_state.users_db.get(st.session_state.current_user, {}).get("role", "Patient")
             )
 
-            with open(report_path, "rb") as f:
-                pdf_bytes = f.read()
+            with open(report_path, "rb") as pdf_file:
+                pdf_bytes = pdf_file.read()
 
-            st.download_button(
-                label="⬇️ Download Report",
-                data=pdf_bytes,
-                file_name=f"{patient_name_report}_diabetes_report.pdf",
-                mime="application/pdf"
+            st.success("Report generated successfully.")
+
+            pdf_file_name = f"{patient_name_report}_report.pdf"
+            whatsapp_message = quote(
+                f"GLUCOTRACK Diabetes Prediction Report\n\n"
+                f"Patient Name: {patient_name_report}\n"
+                f"Patient ID: {patient_id_report}\n"
+                f"Prediction Result: {result_text}\n"
+                f"Glucose: {input_raw['Glucose'].values[0]} mg/dL\n"
+                f"BMI: {input_raw['BMI'].values[0]} kg/m²\n"
+                f"Blood Pressure: {input_raw['BloodPressure'].values[0]} mm Hg\n\n"
+                f"PDF report has been generated. Download it and attach it in WhatsApp if direct file sharing is not supported."
             )
+            whatsapp_url = f"https://wa.me/?text={whatsapp_message}"
 
-            message = quote(
-                f"GlucoTrack Diabetes Report\n"
-                f"Patient: {patient_name_report}\n"
-                f"Result: {result_text}\n"
-                f"Risk Reason: {get_risk_reason(glucose, bmi, insulin, bp, prediction_value)}"
-            )
-
-            st.markdown(
-                f"<a class='whatsapp-btn' href='https://wa.me/?text={message}' target='_blank'>📲 Share on WhatsApp</a>",
-                unsafe_allow_html=True
-            )
-
+            with st.expander("📤 Report Share", expanded=True):
+                c_down, c_whats = st.columns(2)
+                with c_down:
+                    st.download_button(
+                        label="⬇️ Download Report",
+                        data=pdf_bytes,
+                        file_name=pdf_file_name,
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
+                with c_whats:
+                    st.markdown(
+                        f"""
+                        <a href="{whatsapp_url}" target="_blank" style="text-decoration:none;">
+                            <button style="
+                                width:100%;
+                                background:linear-gradient(135deg,#16A34A,#22C55E);
+                                color:white;
+                                border:none;
+                                padding:12px 20px;
+                                border-radius:12px;
+                                cursor:pointer;
+                                font-weight:800;
+                                box-shadow:0 8px 20px rgba(34,197,94,0.25);">
+                                🟢 Share on WhatsApp
+                            </button>
+                        </a>
+                        """,
+                        unsafe_allow_html=True
+                    )
+                st.caption("Direct PDF sharing depends on browser support. On desktop, download the PDF and attach it in WhatsApp.")
+                build_whatsapp_file_share_button(pdf_bytes, pdf_file_name, f"GlucoTrack report for {patient_name_report}: {result_text}")
 
 # ==============================
 # ABOUT PAGE
 # ==============================
-elif st.session_state.logged_in and st.session_state.selected_menu == "About":
-    st.markdown("<div class='accent-line'></div>", unsafe_allow_html=True)
-    st.title("About GlucoTrack")
-
-    c1, c2, c3, c4 = st.columns(4)
-
-    with c1:
-        st.markdown("""
-        <div class='mini-card'>
-            <h4>Fast Prediction</h4>
-            <p>It gives risk output quickly after entering patient values.</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with c2:
-        st.markdown("""
-        <div class='mini-card'>
-            <h4>8 Main Inputs</h4>
-            <p>Uses glucose, BMI, age, insulin, blood pressure and more.</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with c3:
-        st.markdown("""
-        <div class='mini-card'>
-            <h4>Report Generate</h4>
-            <p>Creates a clean PDF report for patient records.</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with c4:
-        st.markdown("""
-        <div class='mini-card'>
-            <h4>Doctor Dashboard</h4>
-            <p>Doctors can enroll and review their own patients.</p>
-        </div>
-        """, unsafe_allow_html=True)
+elif menu == "ℹ️ About":
+    st.markdown('<div class="accent-line"></div>', unsafe_allow_html=True)
+    st.markdown("## About GlucoTrack")
 
     st.markdown("""
-    <div class='main-card'>
-        <p>
-        GlucoTrack is a diabetes risk prediction dashboard made for project and demo purposes.
-        It helps users understand possible risk from clinical input values.
-        It is not a replacement for medical diagnosis.
-        </p>
+    <div class="card">
+      <p>GlucoTrack is a diabetes risk prediction system powered by a supervised machine learning model.</p>
+      <p>It uses patient medical values to predict whether the patient may have low or high diabetes risk.</p>
+      <p><b>Important:</b> This tool is only for project and demo purposes. It should not replace medical advice from a qualified doctor.</p>
     </div>
     """, unsafe_allow_html=True)
+
+    st.markdown("### Key Features")
+    c1, c2, c3, c4 = st.columns(4)
+    features = [
+        ("Fast", "Prediction", "The system gives the diabetes risk result within a few seconds after entering patient values. This helps in quick screening and project demonstration."),
+        ("8", "Main Inputs", "It uses 8 important medical inputs including glucose, BMI, blood pressure, insulin, age, pregnancies, skin thickness and diabetes pedigree function."),
+        ("Secure", "Login", "Users can log in with their registered username and password. This keeps the project flow simple and professional."),
+        ("PDF", "Report", "The app creates a professional patient report with result, input values, charts and health advice. The report can be downloaded and shared."),
+    ]
+    for col, (value, title, desc) in zip([c1, c2, c3, c4], features):
+        with col:
+            st.markdown(f"""
+            <div class="feature-card">
+              <div class="feature-value">{value}</div>
+              <div class="feature-title">{title}</div>
+              <div class="feature-desc">{desc}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+# ==============================
+# SIDEBAR LOGOUT BUTTON
+# ==============================
+if st.session_state.get("logged_in", False):
+    st.sidebar.markdown("<br>", unsafe_allow_html=True)
+
+    if st.sidebar.button("Logout", use_container_width=True):
+        st.session_state.logged_in = False
+        st.session_state.current_user = None
+        try:
+            st.query_params.clear()
+        except Exception:
+            pass
+        st.session_state.patient_photo = None
+        st.session_state.selected_menu = "🏠 Welcome"
+        st.session_state.active_patient_name = ""
+        st.session_state.active_patient_id = ""
+        st.session_state.active_patient_age = None
+        st.session_state.active_patient_gender = ""
+
+        for key in ["prediction", "input_raw", "probability"]:
+            if key in st.session_state:
+                del st.session_state[key]
+
+        st.rerun()
