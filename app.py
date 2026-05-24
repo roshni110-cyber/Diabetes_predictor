@@ -1213,175 +1213,106 @@ elif menu == "🔐 Login":
 
     st.markdown("""
     <style>
-
-    /* REMOVE SCROLL */
-    html, body, .stApp {
-        overflow: hidden !important;
+    .block-container {
+        padding-top: 1rem !important;
+        max-width: 100% !important;
     }
 
-    .main .block-container{
-        padding-top:0rem !important;
-        padding-bottom:0rem !important;
-        max-width:100% !important;
+    .login-main {
+        max-width: 430px;
+        margin: 25px auto 0 auto;
+        padding: 34px 32px;
+        border-radius: 28px;
+        background: rgba(255,255,255,0.78);
+        border: 1px solid rgba(0,119,182,0.18);
+        box-shadow: 0 24px 70px rgba(0,119,182,0.18);
+        backdrop-filter: blur(20px);
+        text-align: center;
     }
 
-    .login-wrapper{
-        min-height:100vh;
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        padding:20px;
+    .login-icon {
+        width: 78px;
+        height: 78px;
+        margin: 0 auto 16px auto;
+        border-radius: 22px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg,#0077B6,#00B4D8);
+        font-size: 2.4rem;
+        box-shadow: 0 12px 28px rgba(0,119,182,0.35);
     }
 
-    .login-card{
-        width:100%;
-        max-width:520px;
-
-        padding:2.8rem 2.5rem;
-
-        border-radius:34px;
-
-        background:rgba(255,255,255,0.10);
-
-        backdrop-filter:blur(26px);
-        -webkit-backdrop-filter:blur(26px);
-
-        border:1px solid rgba(255,255,255,0.16);
-
-        box-shadow:
-        0 10px 40px rgba(0,0,0,0.18),
-        0 0 90px rgba(56,189,248,0.15);
-
-        position:relative;
-        overflow:hidden;
+    .login-heading {
+        font-size: 2rem;
+        font-weight: 900;
+        color: #03045e;
+        margin-bottom: 6px;
     }
 
-    .login-card::before{
-        content:"";
-        position:absolute;
-        width:240px;
-        height:240px;
-        border-radius:50%;
-        background:rgba(56,189,248,0.16);
-        top:-120px;
-        right:-120px;
-        filter:blur(25px);
+    .login-text {
+        font-size: 0.92rem;
+        color: #486174;
+        font-weight: 600;
+        line-height: 1.6;
+        margin-bottom: 8px;
     }
 
-    .login-card::after{
-        content:"";
-        position:absolute;
-        width:220px;
-        height:220px;
-        border-radius:50%;
-        background:rgba(45,212,191,0.14);
-        bottom:-120px;
-        left:-120px;
-        filter:blur(25px);
+    .stTextInput input {
+        height: 50px !important;
+        border-radius: 14px !important;
+        background: #ffffff !important;
+        border: 1.5px solid #BFE8F8 !important;
+        color: #0B1F33 !important;
+        font-weight: 600 !important;
+        padding-left: 15px !important;
     }
 
-    .login-content{
-        position:relative;
-        z-index:5;
+    .stTextInput label {
+        color: #0B1F33 !important;
+        font-weight: 800 !important;
+        font-size: 0.88rem !important;
     }
 
-    .login-logo{
-        width:90px;
-        height:90px;
-        margin:auto;
-        border-radius:24px;
-
-        display:flex;
-        align-items:center;
-        justify-content:center;
-
-        background:linear-gradient(135deg,#0077B6,#00B4D8);
-
-        font-size:2.8rem;
-
-        box-shadow:
-        0 10px 30px rgba(0,119,182,0.35);
-
-        margin-bottom:1.4rem;
+    .stButton > button {
+        height: 50px !important;
+        border-radius: 999px !important;
+        background: linear-gradient(135deg,#0077B6,#00B4D8) !important;
+        color: white !important;
+        font-size: 1rem !important;
+        font-weight: 800 !important;
+        border: none !important;
+        box-shadow: 0 12px 28px rgba(0,119,182,0.30) !important;
     }
 
-    .login-title{
-        text-align:center;
-        font-size:2.3rem;
-        font-weight:800;
-        color:white;
-        margin-bottom:0.5rem;
-        letter-spacing:0.3px;
+    .stButton > button:hover {
+        transform: translateY(-2px);
+        background: linear-gradient(135deg,#0096C7,#00B4D8) !important;
     }
 
-    .login-subtitle{
-        text-align:center;
-        font-size:0.95rem;
-        color:rgba(255,255,255,0.78);
-        line-height:1.7;
-        margin-bottom:2rem;
+    .login-note {
+        text-align: center;
+        margin-top: 18px;
+        color: #486174;
+        font-size: 0.78rem;
+        font-weight: 600;
     }
-
-    .login-footer{
-        text-align:center;
-        margin-top:1.5rem;
-        font-size:0.82rem;
-        color:rgba(255,255,255,0.60);
-    }
-
-    /* INPUT STYLING */
-    .stTextInput input{
-        height:52px !important;
-        border-radius:14px !important;
-        background:rgba(255,255,255,0.92) !important;
-        border:none !important;
-        padding-left:16px !important;
-        font-size:0.95rem !important;
-        color:#0F172A !important;
-    }
-
-    .stTextInput label{
-        font-weight:700 !important;
-        margin-bottom:6px !important;
-    }
-
-    /* BUTTON */
-    .stButton > button{
-        height:52px !important;
-        border-radius:14px !important;
-
-        background:linear-gradient(135deg,#0077B6,#00B4D8) !important;
-
-        color:white !important;
-
-        font-size:1rem !important;
-        font-weight:700 !important;
-
-        border:none !important;
-
-        box-shadow:
-        0 10px 24px rgba(0,119,182,0.30) !important;
-    }
-
-    .stButton > button:hover{
-        transform:translateY(-2px);
-        background:linear-gradient(135deg,#0096C7,#00B4D8) !important;
-    }
-
     </style>
     """, unsafe_allow_html=True)
 
-    st.markdown('<div class="login-wrapper">', unsafe_allow_html=True)
+    st.markdown("""
+    <div class="login-main">
+        <div class="login-icon">🩺</div>
+        <div class="login-heading">Login Account</div>
+        <div class="login-text">
+            Secure access to your diabetes prediction dashboard
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-    left, center, right = st.columns([1,1.15,1])
+    left, center, right = st.columns([1, 1.05, 1])
 
     with center:
-
-        st.markdown("""
-        <div class="login-card">
-    <div class="login-content">
-""", unsafe_allow_html=True)
-        
         login_user = st.text_input(
             "Username",
             placeholder="Enter your username",
@@ -1407,21 +1338,16 @@ elif menu == "🔐 Login":
 
                 st.session_state.logged_in = True
                 st.session_state.current_user = login_user
-
                 st.query_params["user"] = login_user
 
                 if user_data.get("role") == "Doctor":
-
                     st.session_state.selected_menu = "📋 Enroll Patient"
-
                 else:
-
                     st.session_state.active_patient_name = user_data.get("full_name", "")
                     st.session_state.active_patient_id = ""
                     st.session_state.active_patient_age = user_data.get("age")
                     st.session_state.active_patient_gender = user_data.get("gender", "")
                     st.session_state.patient_photo = None
-
                     st.session_state.selected_menu = "🔬 Prediction"
 
                 try:
@@ -1429,29 +1355,20 @@ elif menu == "🔐 Login":
                         st.session_state.selected_menu,
                         ""
                     )
-
                 except Exception:
                     pass
 
-                st.success(
-                    f"Welcome, {user_data.get('full_name', 'User')}!"
-                )
-
+                st.success(f"Welcome, {user_data.get('full_name', 'User')}!")
                 st.rerun()
 
             else:
                 st.error("Invalid username or password.")
 
         st.markdown("""
-                <div class="login-footer">
-                    Secure access to GlucoTrack ML Prediction System
-                </div>
-
-            </div>
+        <div class="login-note">
+            GlucoTrack ML Prediction System
         </div>
         """, unsafe_allow_html=True)
-
-    st.markdown("</div>", unsafe_allow_html=True)
 
 # ==============================
 # SIGN UP PAGE
