@@ -900,11 +900,8 @@ def generate_patient_report(patient_name, patient_id, result_text, patient_data,
     c.setFont("Helvetica", 10)
     c.setFillColor(text_muted)
     c.drawString(65, height - 170, f"Patient Name: {patient_name}")
-    if patient_id and str(patient_id).strip() and str(patient_id) != "Self Check":
+    if patient_id and str(patient_id).strip():
         c.drawString(65, height - 188, f"Patient ID: {patient_id}")
-    else:
-        patient_email = report_for if "@" in str(report_for) else "Not Available"
-        c.drawString(65, height - 188, f"Patient Email: {patient_email}")
     c.drawString(65, height - 206, f"Report Created By: {report_for}")
 
     c.setFillColor(result_color)
@@ -1969,11 +1966,6 @@ elif menu == "🔬 Prediction":
                 )
             else:
                 patient_id_report = ""
-                st.text_input(
-                    "Patient Email for Report",
-                    value=current_user.get("email", "Not Available"),
-                    disabled=True
-                )
 
             if st.button("Generate Report", use_container_width=True):
                 report_path = generate_patient_report(
@@ -2204,11 +2196,6 @@ elif menu == "📊 Visualization":
             )
         else:
             patient_id_report = ""
-            st.text_input(
-                "Patient Email for Report",
-                value=current_user.get("email", "Not Available"),
-                disabled=True
-            )
 
         if st.button("Generate Report", use_container_width=True):
             report_path = generate_patient_report(
