@@ -1251,17 +1251,6 @@ Access your GlucoTrack dashboard securely and continue managing diabetes predict
     left_space, login_box, right_space = st.columns([1, 1.3, 1])
 
     with login_box:
-        st.markdown("""
-        <div style="
-            padding:2rem;
-            border-radius:24px;
-            background:rgba(255,255,255,0.05);
-            border:1px solid rgba(255,255,255,0.12);
-            backdrop-filter:blur(14px);
-            box-shadow:0 12px 35px rgba(0,0,0,0.12);
-        ">
-        """, unsafe_allow_html=True)
-
         login_user = st.text_input("Username", placeholder="Enter your username", key="password_login_user")
         login_password = st.text_input("Password", type="password", placeholder="Enter your password", key="password_login_pass")
 
@@ -1274,7 +1263,7 @@ Access your GlucoTrack dashboard securely and continue managing diabetes predict
                 st.query_params["user"] = login_user
 
                 if user_data.get("role") == "Doctor":
-                    st.session_state.selected_menu = "📋 Enroll Patient"
+                    st.session_state.selected_menu = "👋 Doctor Home"
                 else:
                     st.session_state.active_patient_name = user_data.get("full_name", "")
                     st.session_state.active_patient_id = user_data.get("patient_id", "")
@@ -1291,8 +1280,6 @@ Access your GlucoTrack dashboard securely and continue managing diabetes predict
                 st.rerun()
             else:
                 st.error("Invalid username or password.")
-
-        st.markdown("</div>", unsafe_allow_html=True)
 
 # ==============================
 # SIGN UP PAGE
