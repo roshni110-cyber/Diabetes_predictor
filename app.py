@@ -46,6 +46,7 @@ default_values = {
     "active_patient_gender": "",
     "patients_db": {},
     "previous_menu": None,
+    "page_history": [],
 }
 
 for key, value in default_values.items():
@@ -583,6 +584,53 @@ def apply_theme(theme):
         box-shadow: 0 12px 32px rgba(15,23,42,0.08);
     }}
 
+    .back-shell {{
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin: 0.25rem 0 1.25rem 0;
+        padding: 0.85rem 1rem;
+        background: linear-gradient(135deg, rgba(14,165,233,0.12), rgba(45,212,191,0.10));
+        border: 1px solid {border};
+        border-radius: 18px;
+        box-shadow: 0 12px 30px rgba(15,23,42,0.08);
+    }}
+
+    .back-icon {{
+        width: 38px;
+        height: 38px;
+        border-radius: 999px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, {accent}, {accent2});
+        color: #FFFFFF !important;
+        font-size: 1rem;
+        font-weight: 900;
+        box-shadow: 0 10px 22px rgba(2,132,199,0.25);
+    }}
+
+    .back-title {{
+        font-size: 0.95rem;
+        font-weight: 800;
+        color: {text_main} !important;
+        margin-bottom: 0.08rem;
+    }}
+
+    .back-subtitle {{
+        font-size: 0.78rem;
+        color: {text_sub} !important;
+        line-height: 1.35;
+    }}
+
+    div[data-testid="column"]:has(.back-button-holder) .stButton > button {{
+        background: {card_bg} !important;
+        color: {accent} !important;
+        border: 1px solid {border} !important;
+        box-shadow: 0 10px 22px rgba(15,23,42,0.08) !important;
+        font-weight: 800 !important;
+    }}
+
     @media (max-width: 900px) {{
         .block-container {{ padding-left: 1rem !important; padding-right: 1rem !important; }}
         .hero-title {{ font-size: 2.15rem !important; }}
@@ -614,13 +662,64 @@ model, columns = load_model()
 # ==============================
 # HELPER FUNCTIONS
 # ==============================
-def go_to_page(page_name):
+def go_to_page(page_name, add_to_history=True):
+    current_page = st.session_state.get("selected_menu")
+    if add_to_history and current_page and current_page != page_name:
+        history = st.session_state.get("page_history", [])
+        if not history or history[-1] != current_page:
+            history.append(current_page)
+        st.session_state.page_history = history[-12:]
+
     st.session_state.selected_menu = page_name
     try:
         st.query_params["page"] = PAGE_SLUGS.get(page_name, "")
+        if st.session_state.get("current_user"):
+            st.query_params["user"] = st.session_state.current_user
     except Exception:
         pass
     st.rerun()
+
+def get_safe_back_page():
+    history = st.session_state.get("page_history", [])
+    while history:
+        previous_page = history.pop()
+        if previous_page != st.session_state.get("selected_menu"):
+            st.session_state.page_history = history
+            return previous_page
+
+    if st.session_state.get("logged_in", False):
+        current = get_current_user_data() if "users_db" in st.session_state else {}
+        if current.get("role") == "Doctor":
+            return "👋 Doctor Home"
+        return "🔬 Prediction"
+    return "🏠 Welcome"
+
+def go_back_page():
+    back_page = get_safe_back_page()
+    if back_page == st.session_state.get("selected_menu"):
+        back_page = "🏠 Welcome"
+    go_to_page(back_page, add_to_history=False)
+
+def show_professional_back_button():
+    if st.session_state.get("selected_menu") == "🏠 Welcome":
+        return
+
+    left_col, right_col = st.columns([4, 1])
+    with left_col:
+        st.markdown('''
+            <div class="back-shell">
+                <div class="back-icon">←</div>
+                <div>
+                    <div class="back-title">Back Navigation</div>
+                    <div class="back-subtitle">Return to the previous screen without losing the dashboard style.</div>
+                </div>
+            </div>
+            ''', unsafe_allow_html=True)
+    with right_col:
+        st.markdown('<div class="back-button-holder"></div>', unsafe_allow_html=True)
+        back_key = "back_btn_" + PAGE_SLUGS.get(st.session_state.get("selected_menu"), "page")
+        if st.button("← Back", use_container_width=True, key=back_key):
+            go_back_page()
 
 def generate_otp():
     return str(random.randint(100000, 999999))
@@ -1126,6 +1225,10 @@ if show_sidebar:
     menu = st.sidebar.radio("Navigation", menu_options, index=default_index)
     if menu != st.session_state.selected_menu:
         st.session_state.previous_menu = st.session_state.selected_menu
+        history = st.session_state.get("page_history", [])
+        if not history or history[-1] != st.session_state.selected_menu:
+            history.append(st.session_state.selected_menu)
+        st.session_state.page_history = history[-12:]
         st.session_state.selected_menu = menu
         try:
             st.query_params["page"] = PAGE_SLUGS.get(menu, "")
@@ -1182,6 +1285,7 @@ else:
     """, unsafe_allow_html=True)
 
 apply_theme(st.session_state.theme)
+show_professional_back_button()
 
 # ==============================
 # WELCOME PAGE
