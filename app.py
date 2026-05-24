@@ -1379,21 +1379,9 @@ elif menu == "🔐 Login":
 
         st.markdown("""
         <div class="login-card">
-            <div class="login-content">
-
-                <div class="login-logo">
-                    🩺
-                </div>
-
-                <div class="login-title">
-                    Welcome Back
-                </div>
-
-                <div class="login-subtitle">
-                    Login to access the professional diabetes prediction dashboard
-                </div>
-        """, unsafe_allow_html=True)
-
+    <div class="login-content">
+""", unsafe_allow_html=True)
+        
         login_user = st.text_input(
             "Username",
             placeholder="Enter your username",
