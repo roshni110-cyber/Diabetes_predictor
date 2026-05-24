@@ -2219,7 +2219,9 @@ elif menu == "📊 Visualization":
             whatsapp_message = quote(
                 f"GLUCOTRACK Diabetes Prediction Report\n\n"
                 f"Patient Name: {patient_name_report}\n"
-                + (f"Patient ID: {patient_id_report}\n" if get_current_user_data().get("role") == "Doctor" else f"Patient Email: {current_user.get('email', 'Not Available')}\n")
+                + (f"Patient ID: {patient_id_report}\n"
+                   if get_current_user_data().get("role") == "Doctor"
+                   else f"Patient Email: {get_current_user_data().get('email', 'Not Available')}\n")
                 + f"Prediction Result: {result_text}\n"
                 f"Glucose: {input_raw['Glucose'].values[0]} mg/dL\n"
                 f"BMI: {input_raw['BMI'].values[0]} kg/m²\n"
