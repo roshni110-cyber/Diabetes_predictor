@@ -1214,110 +1214,184 @@ elif menu == "🔐 Login":
     st.markdown("""
     <style>
 
-    .login-page{
-        min-height:90vh;
-        display:flex;
-        justify-content:center;
-        align-items:center;
-        padding-top:20px;
+    /* REMOVE SCROLL */
+    html, body, .stApp {
+        overflow: hidden !important;
     }
 
-    .login-box{
+    .main .block-container{
+        padding-top:0rem !important;
+        padding-bottom:0rem !important;
+        max-width:100% !important;
+    }
+
+    .login-wrapper{
+        min-height:100vh;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        padding:20px;
+    }
+
+    .login-card{
         width:100%;
-        max-width:500px;
-        padding:3rem 2.5rem;
-        border-radius:32px;
+        max-width:520px;
 
-        background:rgba(255,255,255,0.08);
+        padding:2.8rem 2.5rem;
 
-        backdrop-filter:blur(22px);
-        -webkit-backdrop-filter:blur(22px);
+        border-radius:34px;
 
-        border:1px solid rgba(255,255,255,0.12);
+        background:rgba(255,255,255,0.10);
+
+        backdrop-filter:blur(26px);
+        -webkit-backdrop-filter:blur(26px);
+
+        border:1px solid rgba(255,255,255,0.16);
 
         box-shadow:
-        0 10px 40px rgba(0,0,0,0.20),
-        0 0 80px rgba(56,189,248,0.15);
+        0 10px 40px rgba(0,0,0,0.18),
+        0 0 90px rgba(56,189,248,0.15);
 
         position:relative;
         overflow:hidden;
     }
 
-    .login-box::before{
+    .login-card::before{
         content:"";
         position:absolute;
-        top:-120px;
-        right:-120px;
         width:240px;
         height:240px;
         border-radius:50%;
-        background:rgba(56,189,248,0.18);
-        filter:blur(30px);
+        background:rgba(56,189,248,0.16);
+        top:-120px;
+        right:-120px;
+        filter:blur(25px);
     }
 
-    .login-box::after{
+    .login-card::after{
         content:"";
         position:absolute;
-        bottom:-100px;
-        left:-100px;
         width:220px;
         height:220px;
         border-radius:50%;
-        background:rgba(45,212,191,0.15);
-        filter:blur(30px);
+        background:rgba(45,212,191,0.14);
+        bottom:-120px;
+        left:-120px;
+        filter:blur(25px);
+    }
+
+    .login-content{
+        position:relative;
+        z-index:5;
     }
 
     .login-logo{
-        text-align:center;
-        font-size:4rem;
-        margin-bottom:0.5rem;
+        width:90px;
+        height:90px;
+        margin:auto;
+        border-radius:24px;
+
+        display:flex;
+        align-items:center;
+        justify-content:center;
+
+        background:linear-gradient(135deg,#0077B6,#00B4D8);
+
+        font-size:2.8rem;
+
+        box-shadow:
+        0 10px 30px rgba(0,119,182,0.35);
+
+        margin-bottom:1.4rem;
     }
 
     .login-title{
         text-align:center;
-        font-size:2.2rem;
+        font-size:2.3rem;
         font-weight:800;
-        margin-bottom:0.3rem;
-        letter-spacing:0.5px;
+        color:white;
+        margin-bottom:0.5rem;
+        letter-spacing:0.3px;
     }
 
     .login-subtitle{
         text-align:center;
-        opacity:0.72;
         font-size:0.95rem;
-        margin-bottom:2.2rem;
-        line-height:1.6;
+        color:rgba(255,255,255,0.78);
+        line-height:1.7;
+        margin-bottom:2rem;
     }
 
-    .login-divider{
-        height:1px;
-        width:100%;
-        background:rgba(255,255,255,0.08);
-        margin:1.5rem 0;
+    .login-footer{
+        text-align:center;
+        margin-top:1.5rem;
+        font-size:0.82rem;
+        color:rgba(255,255,255,0.60);
+    }
+
+    /* INPUT STYLING */
+    .stTextInput input{
+        height:52px !important;
+        border-radius:14px !important;
+        background:rgba(255,255,255,0.92) !important;
+        border:none !important;
+        padding-left:16px !important;
+        font-size:0.95rem !important;
+        color:#0F172A !important;
+    }
+
+    .stTextInput label{
+        font-weight:700 !important;
+        margin-bottom:6px !important;
+    }
+
+    /* BUTTON */
+    .stButton > button{
+        height:52px !important;
+        border-radius:14px !important;
+
+        background:linear-gradient(135deg,#0077B6,#00B4D8) !important;
+
+        color:white !important;
+
+        font-size:1rem !important;
+        font-weight:700 !important;
+
+        border:none !important;
+
+        box-shadow:
+        0 10px 24px rgba(0,119,182,0.30) !important;
+    }
+
+    .stButton > button:hover{
+        transform:translateY(-2px);
+        background:linear-gradient(135deg,#0096C7,#00B4D8) !important;
     }
 
     </style>
     """, unsafe_allow_html=True)
 
-    st.markdown('<div class="login-page">', unsafe_allow_html=True)
+    st.markdown('<div class="login-wrapper">', unsafe_allow_html=True)
 
-    left, center, right = st.columns([1,1.25,1])
+    left, center, right = st.columns([1,1.15,1])
 
     with center:
 
         st.markdown("""
-        <div class="login-box">
+        <div class="login-card">
+            <div class="login-content">
 
-            <div class="login-logo">🩺</div>
+                <div class="login-logo">
+                    🩺
+                </div>
 
-            <div class="login-title">
-                Welcome Back
-            </div>
+                <div class="login-title">
+                    Welcome Back
+                </div>
 
-            <div class="login-subtitle">
-                Login to access the professional diabetes prediction dashboard
-            </div>
-
+                <div class="login-subtitle">
+                    Login to access the professional diabetes prediction dashboard
+                </div>
         """, unsafe_allow_html=True)
 
         login_user = st.text_input(
@@ -1355,7 +1429,7 @@ elif menu == "🔐 Login":
                 else:
 
                     st.session_state.active_patient_name = user_data.get("full_name", "")
-                    st.session_state.active_patient_id = user_data.get("patient_id", "")
+                    st.session_state.active_patient_id = ""
                     st.session_state.active_patient_age = user_data.get("age")
                     st.session_state.active_patient_gender = user_data.get("gender", "")
                     st.session_state.patient_photo = None
@@ -1381,17 +1455,11 @@ elif menu == "🔐 Login":
                 st.error("Invalid username or password.")
 
         st.markdown("""
-        <div class="login-divider"></div>
+                <div class="login-footer">
+                    Secure access to GlucoTrack ML Prediction System
+                </div>
 
-        <div style="
-            text-align:center;
-            font-size:0.82rem;
-            opacity:0.6;
-            line-height:1.7;
-        ">
-            Secure access to GlucoTrack ML Prediction System
-        </div>
-
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
