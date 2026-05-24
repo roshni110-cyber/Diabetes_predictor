@@ -819,7 +819,7 @@ def create_chart_image(title, labels, values):
     plt.close(fig)
     return img_buffer
 
-def generate_patient_report(patient_name, patient_id, result_text, patient_data, patient_photo=None, include_photo_slot=False, report_for="Patient"):
+def generate_patient_report(patient_name, patient_id, result_text, patient_data, patient_photo=None, include_photo_slot=False, report_for=current_user.get("email", "Patient") if current_user else "Patient"):
     """Create a professional PDF report with styled sections, tables and charts."""
     safe_name = "".join(ch if ch.isalnum() else "_" for ch in (patient_name or "patient"))
     file_path = os.path.join(tempfile.gettempdir(), f"{safe_name}_diabetes_report.pdf")
@@ -903,7 +903,8 @@ def generate_patient_report(patient_name, patient_id, result_text, patient_data,
     if patient_id and str(patient_id) != "Self Check":
         c.drawString(65, height - 188, f"Patient ID: {patient_id}")
     else:
-        c.drawString(65, height - 188, "Patient Type: Self Check")
+        patient_email = report_for if "@" in str(report_for) else "Not Available"
+        c.drawString(65, height - 188, f"Patient Email: {patient_email}")
     c.drawString(65, height - 206, f"Report Created By: {report_for}")
 
     c.setFillColor(result_color)
