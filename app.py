@@ -1210,42 +1210,83 @@ if menu == "🏠 Welcome":
 # LOGIN PAGE
 # ==============================
 elif menu == "🔐 Login":
-    st.markdown('<div class="accent-line"></div>', unsafe_allow_html=True)
-    st.markdown("## Login")
-    st.markdown("Enter your registered username and password to continue.")
 
-    login_box, _ = st.columns([1, 1])
+    st.markdown("""
+    <div class="login-page-wrapper">
+    """, unsafe_allow_html=True)
 
-    with login_box:
-        login_user = st.text_input("Username", placeholder="Enter your username", key="password_login_user")
-        login_password = st.text_input("Password", type="password", placeholder="Enter your password", key="password_login_pass")
+    left, center, right = st.columns([1,1.4,1])
+
+    with center:
+
+        st.markdown("""
+        <div class="login-card">
+            <div class="login-title">🔐 Login</div>
+            <div class="login-subtitle">
+                Enter your registered username and password
+            </div>
+        """, unsafe_allow_html=True)
+
+        login_user = st.text_input(
+            "Username",
+            placeholder="Enter your username",
+            key="password_login_user"
+        )
+
+        login_password = st.text_input(
+            "Password",
+            type="password",
+            placeholder="Enter your password",
+            key="password_login_pass"
+        )
+
+        st.markdown("<br>", unsafe_allow_html=True)
 
         if st.button("Login →", use_container_width=True):
+
             db = st.session_state.users_db
+
             if login_user in db and str(db[login_user].get("password", "")) == login_password:
+
                 user_data = db[login_user]
+
                 st.session_state.logged_in = True
                 st.session_state.current_user = login_user
+
                 st.query_params["user"] = login_user
 
                 if user_data.get("role") == "Doctor":
+
                     st.session_state.selected_menu = "📋 Enroll Patient"
+
                 else:
+
                     st.session_state.active_patient_name = user_data.get("full_name", "")
                     st.session_state.active_patient_id = user_data.get("patient_id", "")
                     st.session_state.active_patient_age = user_data.get("age")
                     st.session_state.active_patient_gender = user_data.get("gender", "")
                     st.session_state.patient_photo = None
+
                     st.session_state.selected_menu = "🔬 Prediction"
 
                 try:
-                    st.query_params["page"] = PAGE_SLUGS.get(st.session_state.selected_menu, "")
+                    st.query_params["page"] = PAGE_SLUGS.get(
+                        st.session_state.selected_menu,
+                        ""
+                    )
+
                 except Exception:
                     pass
+
                 st.success(f"Welcome, {user_data.get('full_name', 'User')}!")
                 st.rerun()
+
             else:
                 st.error("Invalid username or password.")
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("</div>", unsafe_allow_html=True)
 
 # ==============================
 # SIGN UP PAGE
