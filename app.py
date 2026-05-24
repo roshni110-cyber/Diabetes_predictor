@@ -1211,44 +1211,42 @@ if menu == "🏠 Welcome":
 # ==============================
 elif menu == "🔐 Login":
     st.markdown("""
-    <div style="
-        text-align:center;
-        padding:2.2rem 1rem 1rem 1rem;
-        margin-bottom:1rem;
-    ">
-        <div style="
-            display:inline-block;
-            padding:0.45rem 1rem;
-            border-radius:999px;
-            background:linear-gradient(135deg, rgba(14,165,233,0.18), rgba(45,212,191,0.18));
-            color:#0EA5E9;
-            font-size:0.82rem;
-            font-weight:700;
-            letter-spacing:0.08em;
-            margin-bottom:1rem;
-        ">
-            🔐 SECURE LOGIN
-        </div>
+<div style='text-align:center; padding:2.2rem 1rem 1rem 1rem; margin-bottom:1rem;'>
 
-        <h1 style="
-            font-size:3rem;
-            margin-bottom:0.5rem;
-            font-weight:800;
-        ">
-            Welcome Back
-        </h1>
+<div style='
+    display:inline-block;
+    padding:0.45rem 1rem;
+    border-radius:999px;
+    background:linear-gradient(135deg, rgba(14,165,233,0.18), rgba(45,212,191,0.18));
+    color:#0EA5E9;
+    font-size:0.82rem;
+    font-weight:700;
+    letter-spacing:0.08em;
+    margin-bottom:1rem;
+'>
+🔐 SECURE LOGIN
+</div>
 
-        <p style="
-            font-size:1rem;
-            opacity:0.8;
-            max-width:620px;
-            margin:auto;
-            line-height:1.7;
-        ">
-            Access your GlucoTrack dashboard securely and continue managing diabetes prediction, patient records and reports.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
+<h1 style='
+    font-size:3rem;
+    margin-bottom:0.5rem;
+    font-weight:800;
+'>
+Welcome Back
+</h1>
+
+<p style='
+    font-size:1rem;
+    opacity:0.8;
+    max-width:620px;
+    margin:auto;
+    line-height:1.7;
+'>
+Access your GlucoTrack dashboard securely and continue managing diabetes prediction, patient records and reports.
+</p>
+
+</div>
+""", unsafe_allow_html=True)
 
     left_space, login_box, right_space = st.columns([1, 1.3, 1])
 
