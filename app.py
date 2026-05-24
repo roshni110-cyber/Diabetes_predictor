@@ -900,7 +900,7 @@ def generate_patient_report(patient_name, patient_id, result_text, patient_data,
     c.setFont("Helvetica", 10)
     c.setFillColor(text_muted)
     c.drawString(65, height - 170, f"Patient Name: {patient_name}")
-    if patient_id and str(patient_id) != "Self Check":
+    if patient_id and str(patient_id).strip() and str(patient_id) != "Self Check":
         c.drawString(65, height - 188, f"Patient ID: {patient_id}")
     else:
         patient_email = report_for if "@" in str(report_for) else "Not Available"
@@ -1371,7 +1371,7 @@ Access your GlucoTrack dashboard securely and continue managing diabetes predict
                     st.session_state.selected_menu = "👋 Doctor Home"
                 else:
                     st.session_state.active_patient_name = user_data.get("full_name", "")
-                    st.session_state.active_patient_id = user_data.get("patient_id", "")
+                    st.session_state.active_patient_id = ""
                     st.session_state.active_patient_age = user_data.get("age")
                     st.session_state.active_patient_gender = user_data.get("gender", "")
                     st.session_state.patient_photo = None
@@ -1462,7 +1462,7 @@ elif menu == "📝 Sign Up":
                     "license": su_license,
                     "age": su_age,
                     "gender": su_gender,
-                    "patient_id": su_patient_id
+                    "patient_id": ""
                 }
 
                 st.session_state.users_db = db
@@ -1968,7 +1968,12 @@ elif menu == "🔬 Prediction":
                     value=st.session_state.active_patient_id or ""
                 )
             else:
-                patient_id_report = "Self Check"
+                patient_id_report = ""
+                st.text_input(
+                    "Patient Email for Report",
+                    value=current_user.get("email", "Not Available"),
+                    disabled=True
+                )
 
             if st.button("Generate Report"):
                 report_path = generate_patient_report(
@@ -1979,8 +1984,8 @@ elif menu == "🔬 Prediction":
                                'SkinThickness', 'Insulin', 'BMI',
                                'DiabetesPedigreeFunction', 'Age']],
                     st.session_state.patient_photo,
-                    include_photo_slot=(st.session_state.users_db.get(st.session_state.current_user, {}, report_for=(current_user.get("email", "Patient") if current_user.get("role") == "Patient" else current_user.get("full_name", "Doctor"))).get("role") == "Doctor"),
-                    report_for=st.session_state.users_db.get(st.session_state.current_user, {}).get("role", "Patient")
+                    include_photo_slot=(current_user.get("role") == "Doctor"),
+                    report_for=(current_user.get("email", "Patient") if current_user.get("role") == "Patient" else current_user.get("full_name", "Doctor"))
                 )
 
                 with open(report_path, "rb") as pdf_file:
@@ -2192,10 +2197,18 @@ elif menu == "📊 Visualization":
             "Patient Name for Report",
             value=st.session_state.active_patient_name or "Unknown Patient"
         )
-        patient_id_report = st.text_input(
-            "Patient ID for Report",
-            value=st.session_state.active_patient_id or "PT-001"
-        )
+        if current_user.get("role") == "Doctor":
+            patient_id_report = st.text_input(
+                "Patient ID for Report",
+                value=st.session_state.active_patient_id or ""
+            )
+        else:
+            patient_id_report = ""
+            st.text_input(
+                "Patient Email for Report",
+                value=current_user.get("email", "Not Available"),
+                disabled=True
+            )
 
         if st.button("Generate Report"):
             report_path = generate_patient_report(
@@ -2206,8 +2219,8 @@ elif menu == "📊 Visualization":
                            'SkinThickness', 'Insulin', 'BMI',
                            'DiabetesPedigreeFunction', 'Age']],
                 st.session_state.patient_photo,
-                include_photo_slot=(st.session_state.users_db.get(st.session_state.current_user, {}, report_for=(current_user.get("email", "Patient") if current_user.get("role") == "Patient" else current_user.get("full_name", "Doctor"))).get("role") == "Doctor"),
-                report_for=st.session_state.users_db.get(st.session_state.current_user, {}).get("role", "Patient")
+                include_photo_slot=(current_user.get("role") == "Doctor"),
+                report_for=(current_user.get("email", "Patient") if current_user.get("role") == "Patient" else current_user.get("full_name", "Doctor"))
             )
 
             with open(report_path, "rb") as pdf_file:
@@ -2219,8 +2232,8 @@ elif menu == "📊 Visualization":
             whatsapp_message = quote(
                 f"GLUCOTRACK Diabetes Prediction Report\n\n"
                 f"Patient Name: {patient_name_report}\n"
-                f"Patient ID: {patient_id_report}\n"
-                f"Prediction Result: {result_text}\n"
+                (f"Patient ID: {patient_id_report}\n" if current_user.get("role") == "Doctor" else f"Patient Email: {current_user.get('email', 'Not Available')}\n")
+                + f"Prediction Result: {result_text}\n"
                 f"Glucose: {input_raw['Glucose'].values[0]} mg/dL\n"
                 f"BMI: {input_raw['BMI'].values[0]} kg/m²\n"
                 f"Blood Pressure: {input_raw['BloodPressure'].values[0]} mm Hg\n\n"
