@@ -8,6 +8,7 @@ import os
 import io
 import base64
 import urllib.parse
+import plotly.graph_objects as go
 from datetime import datetime, date
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
