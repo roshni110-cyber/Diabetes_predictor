@@ -819,7 +819,7 @@ def create_chart_image(title, labels, values):
     plt.close(fig)
     return img_buffer
 
-def generate_patient_report(patient_name, patient_id, result_text, patient_data, patient_photo=None, include_photo_slot=False, report_for=current_user.get("email", "Patient") if current_user else "Patient"):
+def generate_patient_report(patient_name, patient_id, result_text, patient_data, patient_photo=None, include_photo_slot=False, report_for="Patient"):
     """Create a professional PDF report with styled sections, tables and charts."""
     safe_name = "".join(ch if ch.isalnum() else "_" for ch in (patient_name or "patient"))
     file_path = os.path.join(tempfile.gettempdir(), f"{safe_name}_diabetes_report.pdf")
@@ -1979,7 +1979,7 @@ elif menu == "🔬 Prediction":
                                'SkinThickness', 'Insulin', 'BMI',
                                'DiabetesPedigreeFunction', 'Age']],
                     st.session_state.patient_photo,
-                    include_photo_slot=(st.session_state.users_db.get(st.session_state.current_user, {}).get("role") == "Doctor"),
+                    include_photo_slot=(st.session_state.users_db.get(st.session_state.current_user, {}, report_for=(current_user.get("email", "Patient") if current_user.get("role") == "Patient" else current_user.get("full_name", "Doctor"))).get("role") == "Doctor"),
                     report_for=st.session_state.users_db.get(st.session_state.current_user, {}).get("role", "Patient")
                 )
 
@@ -2206,7 +2206,7 @@ elif menu == "📊 Visualization":
                            'SkinThickness', 'Insulin', 'BMI',
                            'DiabetesPedigreeFunction', 'Age']],
                 st.session_state.patient_photo,
-                include_photo_slot=(st.session_state.users_db.get(st.session_state.current_user, {}).get("role") == "Doctor"),
+                include_photo_slot=(st.session_state.users_db.get(st.session_state.current_user, {}, report_for=(current_user.get("email", "Patient") if current_user.get("role") == "Patient" else current_user.get("full_name", "Doctor"))).get("role") == "Doctor"),
                 report_for=st.session_state.users_db.get(st.session_state.current_user, {}).get("role", "Patient")
             )
 
