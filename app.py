@@ -1975,7 +1975,7 @@ elif menu == "🔬 Prediction":
                     disabled=True
                 )
 
-            if st.button("Generate Report"):
+            if st.button("Generate Report", use_container_width=True):
                 report_path = generate_patient_report(
                     patient_name_report,
                     patient_id_report,
@@ -2210,7 +2210,7 @@ elif menu == "📊 Visualization":
                 disabled=True
             )
 
-        if st.button("Generate Report"):
+        if st.button("Generate Report", use_container_width=True):
             report_path = generate_patient_report(
                 patient_name_report,
                 patient_id_report,
@@ -2232,7 +2232,7 @@ elif menu == "📊 Visualization":
             whatsapp_message = quote(
                 f"GLUCOTRACK Diabetes Prediction Report\n\n"
                 f"Patient Name: {patient_name_report}\n"
-                (f"Patient ID: {patient_id_report}\n" if current_user.get("role") == "Doctor" else f"Patient Email: {current_user.get('email', 'Not Available')}\n")
+                + (f"Patient ID: {patient_id_report}\n" if current_user.get("role") == "Doctor" else f"Patient Email: {current_user.get('email', 'Not Available')}\n")
                 + f"Prediction Result: {result_text}\n"
                 f"Glucose: {input_raw['Glucose'].values[0]} mg/dL\n"
                 f"BMI: {input_raw['BMI'].values[0]} kg/m²\n"
