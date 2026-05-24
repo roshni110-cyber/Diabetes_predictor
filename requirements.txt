@@ -6,3 +6,4 @@ joblib
 pillow
 reportlab
 matplotlib
+plotpy
