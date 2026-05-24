@@ -1816,7 +1816,7 @@ elif menu == "🔬 Prediction":
 
             st.markdown("### Prediction Result")
             st.markdown(f"**Patient Name:** {st.session_state.active_patient_name or 'Not provided'}")
-            if current_user.get("role") == "Doctor":
+            if get_current_user_data().get("role") == "Doctor":
                 st.markdown(f"**Patient ID:** {st.session_state.active_patient_id or 'Not provided'}")
             else:
                 st.markdown("**Mode:** Self-check patient report")
@@ -1959,7 +1959,7 @@ elif menu == "🔬 Prediction":
                 "Patient Name for Report",
                 value=st.session_state.active_patient_name or "Unknown Patient"
             )
-            if current_user.get("role") == "Doctor":
+            if get_current_user_data().get("role") == "Doctor":
                 patient_id_report = st.text_input(
                     "Patient ID for Report",
                     value=st.session_state.active_patient_id or ""
@@ -1977,7 +1977,7 @@ elif menu == "🔬 Prediction":
                                'DiabetesPedigreeFunction', 'Age']],
                     st.session_state.patient_photo,
                     include_photo_slot=(current_user.get("role") == "Doctor"),
-                    report_for=(current_user.get("email", "Patient") if current_user.get("role") == "Patient" else current_user.get("full_name", "Doctor"))
+                    report_for=(get_current_user_data().get("email", "Patient") if get_current_user_data().get("role") == "Patient" else get_current_user_data().get("full_name", "Doctor"))
                 )
 
                 with open(report_path, "rb") as pdf_file:
@@ -2189,7 +2189,7 @@ elif menu == "📊 Visualization":
             "Patient Name for Report",
             value=st.session_state.active_patient_name or "Unknown Patient"
         )
-        if current_user.get("role") == "Doctor":
+        if get_current_user_data().get("role") == "Doctor":
             patient_id_report = st.text_input(
                 "Patient ID for Report",
                 value=st.session_state.active_patient_id or ""
@@ -2207,7 +2207,7 @@ elif menu == "📊 Visualization":
                            'DiabetesPedigreeFunction', 'Age']],
                 st.session_state.patient_photo,
                 include_photo_slot=(current_user.get("role") == "Doctor"),
-                report_for=(current_user.get("email", "Patient") if current_user.get("role") == "Patient" else current_user.get("full_name", "Doctor"))
+                report_for=(get_current_user_data().get("email", "Patient") if get_current_user_data().get("role") == "Patient" else get_current_user_data().get("full_name", "Doctor"))
             )
 
             with open(report_path, "rb") as pdf_file:
