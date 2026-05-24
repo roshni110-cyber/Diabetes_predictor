@@ -1214,98 +1214,97 @@ elif menu == "🔐 Login":
     st.markdown("""
     <style>
     .block-container {
-        padding-top: 1rem !important;
+        padding-top: 1.5rem !important;
         max-width: 100% !important;
     }
 
-    .login-main {
-        max-width: 430px;
-        margin: 25px auto 0 auto;
-        padding: 34px 32px;
-        border-radius: 28px;
-        background: rgba(255,255,255,0.78);
-        border: 1px solid rgba(0,119,182,0.18);
-        box-shadow: 0 24px 70px rgba(0,119,182,0.18);
-        backdrop-filter: blur(20px);
+    .login-header {
+        max-width: 520px;
+        margin: 0 auto 22px auto;
         text-align: center;
+        padding: 28px 24px;
+        border-radius: 28px;
+        background: linear-gradient(135deg, rgba(255,255,255,0.90), rgba(221,244,255,0.88));
+        border: 1px solid rgba(0,119,182,0.20);
+        box-shadow: 0 22px 55px rgba(0,119,182,0.18);
     }
 
     .login-icon {
-        width: 78px;
-        height: 78px;
-        margin: 0 auto 16px auto;
-        border-radius: 22px;
+        width: 82px;
+        height: 82px;
+        margin: 0 auto 14px auto;
+        border-radius: 24px;
+        background: linear-gradient(135deg,#0077B6,#00B4D8);
         display: flex;
         align-items: center;
         justify-content: center;
-        background: linear-gradient(135deg,#0077B6,#00B4D8);
-        font-size: 2.4rem;
-        box-shadow: 0 12px 28px rgba(0,119,182,0.35);
+        font-size: 2.5rem;
+        box-shadow: 0 14px 30px rgba(0,119,182,0.35);
     }
 
     .login-heading {
-        font-size: 2rem;
+        font-size: 2.1rem;
         font-weight: 900;
         color: #03045e;
         margin-bottom: 6px;
     }
 
-    .login-text {
-        font-size: 0.92rem;
-        color: #486174;
+    .login-sub {
+        font-size: 0.95rem;
         font-weight: 600;
+        color: #486174;
         line-height: 1.6;
-        margin-bottom: 8px;
     }
 
-    .stTextInput input {
-        height: 50px !important;
+    div[data-testid="stTextInput"] input {
+        height: 52px !important;
         border-radius: 14px !important;
         background: #ffffff !important;
         border: 1.5px solid #BFE8F8 !important;
         color: #0B1F33 !important;
-        font-weight: 600 !important;
-        padding-left: 15px !important;
+        font-weight: 700 !important;
+        padding-left: 16px !important;
+        box-shadow: 0 8px 22px rgba(0,119,182,0.08) !important;
     }
 
-    .stTextInput label {
+    div[data-testid="stTextInput"] label {
         color: #0B1F33 !important;
         font-weight: 800 !important;
-        font-size: 0.88rem !important;
+        font-size: 0.9rem !important;
     }
 
     .stButton > button {
-        height: 50px !important;
+        height: 52px !important;
         border-radius: 999px !important;
         background: linear-gradient(135deg,#0077B6,#00B4D8) !important;
         color: white !important;
         font-size: 1rem !important;
-        font-weight: 800 !important;
+        font-weight: 900 !important;
         border: none !important;
-        box-shadow: 0 12px 28px rgba(0,119,182,0.30) !important;
+        box-shadow: 0 14px 30px rgba(0,119,182,0.30) !important;
     }
 
     .stButton > button:hover {
-        transform: translateY(-2px);
+        transform: translateY(-2px) !important;
         background: linear-gradient(135deg,#0096C7,#00B4D8) !important;
     }
 
-    .login-note {
+    .login-footer {
         text-align: center;
         margin-top: 18px;
         color: #486174;
-        font-size: 0.78rem;
-        font-weight: 600;
+        font-size: 0.8rem;
+        font-weight: 700;
     }
     </style>
     """, unsafe_allow_html=True)
 
     st.markdown("""
-    <div class="login-main">
+    <div class="login-header">
         <div class="login-icon">🩺</div>
-        <div class="login-heading">Login Account</div>
-        <div class="login-text">
-            Secure access to your diabetes prediction dashboard
+        <div class="login-heading">Welcome Back</div>
+        <div class="login-sub">
+            Login securely to access your diabetes prediction dashboard
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -1365,7 +1364,7 @@ elif menu == "🔐 Login":
                 st.error("Invalid username or password.")
 
         st.markdown("""
-        <div class="login-note">
+        <div class="login-footer">
             GlucoTrack ML Prediction System
         </div>
         """, unsafe_allow_html=True)
