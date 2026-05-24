@@ -1212,19 +1212,112 @@ if menu == "🏠 Welcome":
 elif menu == "🔐 Login":
 
     st.markdown("""
-    <div class="login-page-wrapper">
+    <style>
+
+    .login-page{
+        min-height:90vh;
+        display:flex;
+        justify-content:center;
+        align-items:center;
+        padding-top:20px;
+    }
+
+    .login-box{
+        width:100%;
+        max-width:500px;
+        padding:3rem 2.5rem;
+        border-radius:32px;
+
+        background:rgba(255,255,255,0.08);
+
+        backdrop-filter:blur(22px);
+        -webkit-backdrop-filter:blur(22px);
+
+        border:1px solid rgba(255,255,255,0.12);
+
+        box-shadow:
+        0 10px 40px rgba(0,0,0,0.20),
+        0 0 80px rgba(56,189,248,0.15);
+
+        position:relative;
+        overflow:hidden;
+    }
+
+    .login-box::before{
+        content:"";
+        position:absolute;
+        top:-120px;
+        right:-120px;
+        width:240px;
+        height:240px;
+        border-radius:50%;
+        background:rgba(56,189,248,0.18);
+        filter:blur(30px);
+    }
+
+    .login-box::after{
+        content:"";
+        position:absolute;
+        bottom:-100px;
+        left:-100px;
+        width:220px;
+        height:220px;
+        border-radius:50%;
+        background:rgba(45,212,191,0.15);
+        filter:blur(30px);
+    }
+
+    .login-logo{
+        text-align:center;
+        font-size:4rem;
+        margin-bottom:0.5rem;
+    }
+
+    .login-title{
+        text-align:center;
+        font-size:2.2rem;
+        font-weight:800;
+        margin-bottom:0.3rem;
+        letter-spacing:0.5px;
+    }
+
+    .login-subtitle{
+        text-align:center;
+        opacity:0.72;
+        font-size:0.95rem;
+        margin-bottom:2.2rem;
+        line-height:1.6;
+    }
+
+    .login-divider{
+        height:1px;
+        width:100%;
+        background:rgba(255,255,255,0.08);
+        margin:1.5rem 0;
+    }
+
+    </style>
     """, unsafe_allow_html=True)
 
-    left, center, right = st.columns([1,1.4,1])
+    st.markdown('<div class="login-page">', unsafe_allow_html=True)
+
+    left, center, right = st.columns([1,1.25,1])
 
     with center:
 
         st.markdown("""
-        <div class="login-card">
-            <div class="login-title">🔐 Login</div>
-            <div class="login-subtitle">
-                Enter your registered username and password
+        <div class="login-box">
+
+            <div class="login-logo">🩺</div>
+
+            <div class="login-title">
+                Welcome Back
             </div>
+
+            <div class="login-subtitle">
+                Login to access the professional diabetes prediction dashboard
+            </div>
+
         """, unsafe_allow_html=True)
 
         login_user = st.text_input(
@@ -1278,13 +1371,29 @@ elif menu == "🔐 Login":
                 except Exception:
                     pass
 
-                st.success(f"Welcome, {user_data.get('full_name', 'User')}!")
+                st.success(
+                    f"Welcome, {user_data.get('full_name', 'User')}!"
+                )
+
                 st.rerun()
 
             else:
                 st.error("Invalid username or password.")
 
-        st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("""
+        <div class="login-divider"></div>
+
+        <div style="
+            text-align:center;
+            font-size:0.82rem;
+            opacity:0.6;
+            line-height:1.7;
+        ">
+            Secure access to GlucoTrack ML Prediction System
+        </div>
+
+        </div>
+        """, unsafe_allow_html=True)
 
     st.markdown("</div>", unsafe_allow_html=True)
 
