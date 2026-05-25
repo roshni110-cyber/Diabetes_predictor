@@ -1189,9 +1189,7 @@ if show_sidebar:
         if current_role == "Doctor":
             menu_options = [
                 "👋 Doctor Home",
-                "📋 Enroll Patient",
                 "👥 Patient Details",
-                "🔬 Prediction",
                 "📊 Visualization",
                 "ℹ️ About"
             ]
@@ -1208,12 +1206,16 @@ if show_sidebar:
             "ℹ️ About"
         ]
 
+    hidden_doctor_pages = ["📋 Enroll Patient", "🔬 Prediction"]
     if st.session_state.selected_menu not in menu_options:
-        st.session_state.selected_menu = menu_options[0]
+        current_user_data_for_guard = st.session_state.users_db.get(st.session_state.current_user, {})
+        if not (current_user_data_for_guard.get("role") == "Doctor" and st.session_state.selected_menu in hidden_doctor_pages):
+            st.session_state.selected_menu = menu_options[0]
 
-    default_index = menu_options.index(st.session_state.selected_menu)
+    sidebar_selected = st.session_state.selected_menu if st.session_state.selected_menu in menu_options else menu_options[0]
+    default_index = menu_options.index(sidebar_selected)
     menu = st.sidebar.radio("Navigation", menu_options, index=default_index)
-    if menu != st.session_state.selected_menu:
+    if menu != sidebar_selected:
         st.session_state.previous_menu = st.session_state.selected_menu
         history = st.session_state.get("page_history", [])
         if not history or history[-1] != st.session_state.selected_menu:
@@ -1505,7 +1507,7 @@ elif menu == "👋 Doctor Home":
             st.markdown("---")
             a, b = st.columns(2)
             with a:
-                if st.button("➕ Enroll New Patient", use_container_width=True):
+                if st.button("➕ Enroll Patient", use_container_width=True):
                     go_to_page("📋 Enroll Patient")
             with b:
                 if st.button("👥 View Patient Details", use_container_width=True):
@@ -1655,7 +1657,7 @@ elif menu == "📋 Enroll Patient":
 
                 p_notes = st.text_area("Medical Notes", height=80, placeholder="Optional notes", key="enroll_notes")
 
-            if st.button("Enroll Patient", use_container_width=True):
+            if st.button("Predict", use_container_width=True):
                 clean_patient_id = p_id.strip()
                 if not p_name or not clean_patient_id:
                     st.warning("Please enter Patient Name and Patient ID.")
