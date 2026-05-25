@@ -49,6 +49,7 @@ default_values = {
     "page_history": [],
     "patient_data_saved_once": False,
     "patient_flow_completed": True,
+    "show_open_prediction_after_enroll": False,
 }
 
 for key, value in default_values.items():
@@ -1551,7 +1552,7 @@ elif menu == "👋 Doctor Home":
                 st.warning("Please complete the current patient's visualization/report before enrolling another patient.")
             a, b = st.columns(2)
             with a:
-                if st.button("➕ Enroll New Patient", use_container_width=True, disabled=enrollment_locked):
+                if st.button("➕ Enroll Patient", use_container_width=True, disabled=enrollment_locked):
                     go_to_page("📋 Enroll Patient")
             with b:
                 if st.button("👥 View Patient Details", use_container_width=True):
@@ -1636,6 +1637,7 @@ elif menu == "👥 Patient Details":
                             for widget_key in ["pred_preg", "pred_glucose", "pred_bp", "pred_skin", "pred_insulin", "pred_bmi", "pred_dpf", "pred_age"]:
                                 if widget_key in st.session_state:
                                     del st.session_state[widget_key]
+                            st.session_state.show_open_prediction_after_enroll = False
                             go_to_page("🔬 Prediction")
                 else:
                     st.warning("No matching patient found.")
@@ -1665,6 +1667,11 @@ elif menu == "📋 Enroll Patient":
                 st.stop()
 
             st.markdown("### Enroll New Patient")
+
+            if st.session_state.get("show_open_prediction_after_enroll", False):
+                if st.button("Open Prediction", use_container_width=True):
+                    st.session_state.show_open_prediction_after_enroll = False
+                    go_to_page("🔬 Prediction")
 
             col1, col2 = st.columns([1, 1])
 
@@ -1752,8 +1759,9 @@ elif menu == "📋 Enroll Patient":
                     for clear_key in ["input_raw", "prediction", "probability", "saved_input_signature"]:
                         if clear_key in st.session_state:
                             del st.session_state[clear_key]
-                    st.success(f"Patient {p_name} enrolled successfully.")
-                    go_to_page("🔬 Prediction")
+                    st.success(f"Patient {p_name} enrolled successfully. Now click Open Prediction to continue.")
+                    st.session_state.show_open_prediction_after_enroll = True
+                    st.rerun()
 
 # ==============================
 # PREDICTION PAGE
