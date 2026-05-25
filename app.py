@@ -47,9 +47,6 @@ default_values = {
     "patients_db": {},
     "previous_menu": None,
     "page_history": [],
-    "patient_data_saved_once": False,
-    "patient_flow_completed": True,
-    "show_open_prediction_after_enroll": False,
 }
 
 for key, value in default_values.items():
@@ -634,49 +631,6 @@ def apply_theme(theme):
         font-weight: 800 !important;
     }}
 
-
-    .professional-uploader-box {{
-        background: linear-gradient(135deg, rgba(14,165,233,0.10), rgba(45,212,191,0.09));
-        border: 1px dashed {border};
-        border-radius: 20px;
-        padding: 1rem;
-        margin-top: 0.35rem;
-        box-shadow: 0 12px 30px rgba(15,23,42,0.08);
-    }}
-
-    .professional-uploader-box div[data-testid="stFileUploader"] {{
-        background: transparent !important;
-        border: none !important;
-    }}
-
-    .professional-uploader-box div[data-testid="stFileUploader"] section {{
-        background: {card_bg} !important;
-        border: 1px dashed {accent} !important;
-        border-radius: 16px !important;
-        padding: 1rem !important;
-    }}
-
-    .professional-uploader-box div[data-testid="stFileUploader"] button {{
-        background: linear-gradient(135deg, {accent}, {accent2}) !important;
-        color: #FFFFFF !important;
-        border-radius: 999px !important;
-        font-weight: 800 !important;
-        padding: 0.45rem 1rem !important;
-    }}
-
-    .professional-uploader-title {{
-        font-size: 0.9rem;
-        font-weight: 800;
-        color: {text_main} !important;
-        margin-bottom: 0.25rem;
-    }}
-
-    .professional-uploader-subtitle {{
-        font-size: 0.78rem;
-        color: {text_sub} !important;
-        margin-bottom: 0.65rem;
-    }}
-
     @media (max-width: 900px) {{
         .block-container {{ padding-left: 1rem !important; padding-right: 1rem !important; }}
         .hero-title {{ font-size: 2.15rem !important; }}
@@ -1235,7 +1189,9 @@ if show_sidebar:
         if current_role == "Doctor":
             menu_options = [
                 "👋 Doctor Home",
+                "📋 Enroll Patient",
                 "👥 Patient Details",
+                "🔬 Prediction",
                 "📊 Visualization",
                 "ℹ️ About"
             ]
@@ -1549,7 +1505,7 @@ elif menu == "👋 Doctor Home":
             st.markdown("---")
             a, b = st.columns(2)
             with a:
-                if st.button("➕ Enroll Patient", use_container_width=True):
+                if st.button("➕ Enroll New Patient", use_container_width=True):
                     go_to_page("📋 Enroll Patient")
             with b:
                 if st.button("👥 View Patient Details", use_container_width=True):
@@ -1601,11 +1557,7 @@ elif menu == "👥 Patient Details":
                     selected_id = st.selectbox("Select Patient ID to open", [r["Patient ID"] for r in rows])
                     open_col, delete_col = st.columns(2)
                     with open_col:
-                        open_selected = st.button(
-                            "Open Selected Patient in Prediction",
-                            use_container_width=True,
-                            disabled=not st.session_state.get("patient_flow_completed", True)
-                        )
+                        open_selected = st.button("Open Selected Patient in Prediction", use_container_width=True)
                     with delete_col:
                         delete_selected = st.button("🗑️ Delete Selected Patient", use_container_width=True)
                     if delete_selected:
@@ -1634,7 +1586,6 @@ elif menu == "👥 Patient Details":
                             for widget_key in ["pred_preg", "pred_glucose", "pred_bp", "pred_skin", "pred_insulin", "pred_bmi", "pred_dpf", "pred_age"]:
                                 if widget_key in st.session_state:
                                     del st.session_state[widget_key]
-                            st.session_state.show_open_prediction_after_enroll = False
                             go_to_page("🔬 Prediction")
                 else:
                     st.warning("No matching patient found.")
@@ -1659,18 +1610,7 @@ elif menu == "📋 Enroll Patient":
             if doctor_key not in st.session_state.patients_db:
                 st.session_state.patients_db[doctor_key] = {}
 
-            if not st.session_state.get("patient_flow_completed", True):
-                st.warning("Please complete the current patient's visualization/report before enrolling another patient.")
-                st.info("You can continue with the current patient using the Open Prediction button below.")
-
             st.markdown("### Enroll New Patient")
-
-            if st.session_state.get("show_open_prediction_after_enroll", False) or not st.session_state.get("patient_flow_completed", True):
-                if st.button("Open Prediction", use_container_width=True):
-                    st.session_state.show_open_prediction_after_enroll = False
-                    go_to_page("🔬 Prediction")
-                if not st.session_state.get("patient_flow_completed", True):
-                    st.stop()
 
             col1, col2 = st.columns([1, 1])
 
@@ -1678,9 +1618,6 @@ elif menu == "📋 Enroll Patient":
                 st.markdown("#### Patient Details")
                 p_name = st.text_input("Patient Full Name", placeholder="Example: Ramesh Kumar", key="enroll_name")
                 p_id = st.text_input("Patient ID", placeholder="Example: PT-20260001", key="enroll_id")
-                live_patient_id = p_id.strip()
-                if live_patient_id and live_patient_id in st.session_state.patients_db.get(doctor_key, {}):
-                    st.caption("⚠️ This Patient ID already exists. Please enter a unique Patient ID.")
                 p_age = st.number_input("Age", 1, 120, 35, key="enroll_age")
                 p_gender = st.selectbox("Gender", ["Male", "Female", "Other"], key="enroll_gender")
                 p_contact = st.text_input("Contact Number", placeholder="+91 XXXXX XXXXX", key="enroll_contact")
@@ -1688,13 +1625,7 @@ elif menu == "📋 Enroll Patient":
 
             with col2:
                 st.markdown("#### Patient Photo")
-                st.markdown("""
-                <div class="professional-uploader-box">
-                    <div class="professional-uploader-title">Upload Patient Photo</div>
-                    <div class="professional-uploader-subtitle">Use a clear JPG or PNG image for the patient profile.</div>
-                </div>
-                """, unsafe_allow_html=True)
-                photo = st.file_uploader("Choose Photo", type=["jpg", "jpeg", "png"], label_visibility="collapsed")
+                photo = st.file_uploader("Upload Photo (JPG / PNG)", type=["jpg", "jpeg", "png"])
 
                 uploaded_photo_b64 = None
                 if photo:
@@ -1748,19 +1679,14 @@ elif menu == "📋 Enroll Patient":
                     st.session_state.active_patient_age = p_age
                     st.session_state.active_patient_gender = p_gender
                     st.session_state.patient_photo = uploaded_photo_b64
-                    st.session_state.patient_flow_completed = False
-                    st.session_state.patient_data_saved_once = False
-                    if "saved_input_signature" in st.session_state:
-                        del st.session_state.saved_input_signature
                     for widget_key in ["pred_preg", "pred_glucose", "pred_bp", "pred_skin", "pred_insulin", "pred_bmi", "pred_dpf", "pred_age"]:
                         if widget_key in st.session_state:
                             del st.session_state[widget_key]
                     for clear_key in ["input_raw", "prediction", "probability", "saved_input_signature"]:
                         if clear_key in st.session_state:
                             del st.session_state[clear_key]
-                    st.success(f"Patient {p_name} enrolled successfully. Now click Open Prediction to continue.")
-                    st.session_state.show_open_prediction_after_enroll = True
-                    st.rerun()
+                    st.success(f"Patient {p_name} enrolled successfully.")
+                    go_to_page("🔬 Prediction")
 
 # ==============================
 # PREDICTION PAGE
@@ -1866,7 +1792,6 @@ elif menu == "🔬 Prediction":
                 ok, msg = save_current_patient_values(current_user, preg, glucose, bp, skin, insulin, bmi, dpf, age)
                 if ok:
                     st.session_state.saved_input_signature = current_input_signature
-                    st.session_state.patient_data_saved_once = True
                     st.success(msg)
                     st.rerun()
                 else:
@@ -1878,8 +1803,8 @@ elif menu == "🔬 Prediction":
                 disabled=not data_saved_for_current_values
             )
 
-        if st.session_state.get("patient_data_saved_once", False) and not data_saved_for_current_values:
-            st.info("Please save the updated patient data first. Run Prediction will be enabled after saving.")
+        if not data_saved_for_current_values:
+            st.info("Please save patient data first. Run Prediction will be enabled after saving.")
 
         if run_prediction:
             input_raw = st.session_state.input_raw
@@ -1897,7 +1822,6 @@ elif menu == "🔬 Prediction":
             st.session_state.prediction = prediction[0]
             st.session_state.probability = probability
             save_current_patient_values(current_user, preg, glucose, bp, skin, insulin, bmi, dpf, age, prediction[0], probability)
-            st.session_state.patient_flow_completed = True
 
             go_to_page("📊 Visualization")
 
