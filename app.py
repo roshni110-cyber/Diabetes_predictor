@@ -1547,12 +1547,9 @@ elif menu == "👋 Doctor Home":
             with c3:
                 st.markdown('<div class="responsive-card"><h3>PDF</h3><p>Professional Reports</p></div>', unsafe_allow_html=True)
             st.markdown("---")
-            enrollment_locked = not st.session_state.get("patient_flow_completed", True)
-            if enrollment_locked:
-                st.warning("Please complete the current patient's visualization/report before enrolling another patient.")
             a, b = st.columns(2)
             with a:
-                if st.button("➕ Enroll Patient", use_container_width=True, disabled=enrollment_locked):
+                if st.button("➕ Enroll Patient", use_container_width=True):
                     go_to_page("📋 Enroll Patient")
             with b:
                 if st.button("👥 View Patient Details", use_container_width=True):
@@ -1664,14 +1661,16 @@ elif menu == "📋 Enroll Patient":
 
             if not st.session_state.get("patient_flow_completed", True):
                 st.warning("Please complete the current patient's visualization/report before enrolling another patient.")
-                st.stop()
+                st.info("You can continue with the current patient using the Open Prediction button below.")
 
             st.markdown("### Enroll New Patient")
 
-            if st.session_state.get("show_open_prediction_after_enroll", False):
+            if st.session_state.get("show_open_prediction_after_enroll", False) or not st.session_state.get("patient_flow_completed", True):
                 if st.button("Open Prediction", use_container_width=True):
                     st.session_state.show_open_prediction_after_enroll = False
                     go_to_page("🔬 Prediction")
+                if not st.session_state.get("patient_flow_completed", True):
+                    st.stop()
 
             col1, col2 = st.columns([1, 1])
 
