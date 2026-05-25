@@ -129,7 +129,7 @@ try:
         st.session_state.current_user = remembered_user
         if st.session_state.selected_menu == "🏠 Welcome":
             role = st.session_state.users_db[remembered_user].get("role", "Patient")
-            st.session_state.selected_menu = "🏠 Welcome" if role == "Doctor" else "🔬 Prediction"
+            st.session_state.selected_menu = "👋 Doctor Home" if role == "Doctor" else "🔬 Prediction"
 except Exception:
     pass
 
@@ -1188,7 +1188,6 @@ if show_sidebar:
 
         if current_role == "Doctor":
             menu_options = [
-                "🏠 Welcome",
                 "👋 Doctor Home",
                 "📋 Enroll Patient",
                 "👥 Patient Details",
@@ -1358,7 +1357,7 @@ Access your GlucoTrack dashboard securely and continue managing diabetes predict
                 st.query_params["user"] = login_user
 
                 if user_data.get("role") == "Doctor":
-                    st.session_state.selected_menu = "🏠 Welcome"
+                    st.session_state.selected_menu = "👋 Doctor Home"
                 else:
                     st.session_state.active_patient_name = user_data.get("full_name", "")
                     st.session_state.active_patient_id = ""
@@ -1462,7 +1461,7 @@ elif menu == "📝 Sign Up":
                 st.query_params["user"] = su_username
 
                 if account_type == "Doctor":
-                    st.session_state.selected_menu = "🏠 Welcome"
+                    st.session_state.selected_menu = "👋 Doctor Home"
                 else:
                     st.session_state.active_patient_name = su_fullname
                     st.session_state.active_patient_id = ""
