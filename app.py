@@ -129,7 +129,7 @@ try:
         st.session_state.current_user = remembered_user
         if st.session_state.selected_menu == "🏠 Welcome":
             role = st.session_state.users_db[remembered_user].get("role", "Patient")
-            st.session_state.selected_menu = "👋 Doctor Home" if role == "Doctor" else "🔬 Prediction"
+            st.session_state.selected_menu = "🏠 Welcome" if role == "Doctor" else "🔬 Prediction"
 except Exception:
     pass
 
@@ -704,22 +704,14 @@ def show_professional_back_button():
     if st.session_state.get("selected_menu") == "🏠 Welcome":
         return
 
-    left_col, right_col = st.columns([4, 1])
+    left_col, right_col = st.columns([1, 5])
     with left_col:
-        st.markdown('''
-            <div class="back-shell">
-                <div class="back-icon">←</div>
-                <div>
-                    <div class="back-title">Back Navigation</div>
-                    <div class="back-subtitle">Return to the previous screen without losing the dashboard style.</div>
-                </div>
-            </div>
-            ''', unsafe_allow_html=True)
-    with right_col:
         st.markdown('<div class="back-button-holder"></div>', unsafe_allow_html=True)
         back_key = "back_btn_" + PAGE_SLUGS.get(st.session_state.get("selected_menu"), "page")
         if st.button("← Back", use_container_width=True, key=back_key):
             go_back_page()
+    with right_col:
+        st.markdown("<div style='height:0.35rem;'></div>", unsafe_allow_html=True)
 
 def generate_otp():
     return str(random.randint(100000, 999999))
@@ -1196,6 +1188,7 @@ if show_sidebar:
 
         if current_role == "Doctor":
             menu_options = [
+                "🏠 Welcome",
                 "👋 Doctor Home",
                 "📋 Enroll Patient",
                 "👥 Patient Details",
@@ -1365,7 +1358,7 @@ Access your GlucoTrack dashboard securely and continue managing diabetes predict
                 st.query_params["user"] = login_user
 
                 if user_data.get("role") == "Doctor":
-                    st.session_state.selected_menu = "👋 Doctor Home"
+                    st.session_state.selected_menu = "🏠 Welcome"
                 else:
                     st.session_state.active_patient_name = user_data.get("full_name", "")
                     st.session_state.active_patient_id = ""
@@ -1469,7 +1462,7 @@ elif menu == "📝 Sign Up":
                 st.query_params["user"] = su_username
 
                 if account_type == "Doctor":
-                    st.session_state.selected_menu = "📋 Enroll Patient"
+                    st.session_state.selected_menu = "🏠 Welcome"
                 else:
                     st.session_state.active_patient_name = su_fullname
                     st.session_state.active_patient_id = ""
@@ -1588,7 +1581,7 @@ elif menu == "👥 Patient Details":
                                 st.session_state.prediction = saved_patient.get("last_prediction")
                                 st.session_state.probability = saved_patient.get("last_probability")
                             else:
-                                for clear_key in ["input_raw", "prediction", "probability"]:
+                                for clear_key in ["input_raw", "prediction", "probability", "saved_input_signature"]:
                                     if clear_key in st.session_state:
                                         del st.session_state[clear_key]
                             for widget_key in ["pred_preg", "pred_glucose", "pred_bp", "pred_skin", "pred_insulin", "pred_bmi", "pred_dpf", "pred_age"]:
@@ -1663,7 +1656,7 @@ elif menu == "📋 Enroll Patient":
 
                 p_notes = st.text_area("Medical Notes", height=80, placeholder="Optional notes", key="enroll_notes")
 
-            if st.button("Enroll Patient and Open Prediction"):
+            if st.button("Enroll Patient", use_container_width=True):
                 clean_patient_id = p_id.strip()
                 if not p_name or not clean_patient_id:
                     st.warning("Please enter Patient Name and Patient ID.")
@@ -1690,12 +1683,11 @@ elif menu == "📋 Enroll Patient":
                     for widget_key in ["pred_preg", "pred_glucose", "pred_bp", "pred_skin", "pred_insulin", "pred_bmi", "pred_dpf", "pred_age"]:
                         if widget_key in st.session_state:
                             del st.session_state[widget_key]
-                    for clear_key in ["input_raw", "prediction", "probability"]:
+                    for clear_key in ["input_raw", "prediction", "probability", "saved_input_signature"]:
                         if clear_key in st.session_state:
                             del st.session_state[clear_key]
-                    st.session_state.selected_menu = "🔬 Prediction"
                     st.success(f"Patient {p_name} enrolled successfully.")
-                    st.rerun()
+                    go_to_page("🔬 Prediction")
 
 # ==============================
 # PREDICTION PAGE
@@ -1778,19 +1770,44 @@ elif menu == "🔬 Prediction":
             default_age = int(saved_defaults.get("Age", st.session_state.active_patient_age if st.session_state.active_patient_age else 30))
             age = st.number_input("Age (years)", 1, 100, default_age, key="pred_age")
     
+        current_input_signature = {
+            "patient_name": patient_name,
+            "patient_id": patient_id,
+            "Pregnancies": preg,
+            "Glucose": glucose,
+            "BloodPressure": bp,
+            "SkinThickness": skin,
+            "Insulin": insulin,
+            "BMI": bmi,
+            "DiabetesPedigreeFunction": dpf,
+            "Age": age,
+        }
+
+        data_saved_for_current_values = (
+            st.session_state.get("saved_input_signature") == current_input_signature
+        )
+
         save_col, predict_col = st.columns(2)
         with save_col:
             if st.button("💾 Save Patient Data", use_container_width=True):
                 ok, msg = save_current_patient_values(current_user, preg, glucose, bp, skin, insulin, bmi, dpf, age)
                 if ok:
+                    st.session_state.saved_input_signature = current_input_signature
                     st.success(msg)
+                    st.rerun()
                 else:
                     st.warning(msg)
         with predict_col:
-            run_prediction = st.button("Run Prediction", use_container_width=True)
+            run_prediction = st.button(
+                "Run Prediction",
+                use_container_width=True,
+                disabled=not data_saved_for_current_values
+            )
+
+        if not data_saved_for_current_values:
+            st.info("Please save patient data first. Run Prediction will be enabled after saving.")
 
         if run_prediction:
-            ok, msg = save_current_patient_values(current_user, preg, glucose, bp, skin, insulin, bmi, dpf, age)
             input_raw = st.session_state.input_raw
 
             input_encoded = pd.get_dummies(input_raw)
