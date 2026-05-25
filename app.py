@@ -634,47 +634,47 @@ def apply_theme(theme):
     }}
 
 
-    .professional-uploader-box {
+    .professional-uploader-box {{
         background: linear-gradient(135deg, rgba(14,165,233,0.10), rgba(45,212,191,0.09));
         border: 1px dashed {border};
         border-radius: 20px;
         padding: 1rem;
         margin-top: 0.35rem;
         box-shadow: 0 12px 30px rgba(15,23,42,0.08);
-    }
+    }}
 
-    .professional-uploader-box div[data-testid="stFileUploader"] {
+    .professional-uploader-box div[data-testid="stFileUploader"] {{
         background: transparent !important;
         border: none !important;
-    }
+    }}
 
-    .professional-uploader-box div[data-testid="stFileUploader"] section {
+    .professional-uploader-box div[data-testid="stFileUploader"] section {{
         background: {card_bg} !important;
         border: 1px dashed {accent} !important;
         border-radius: 16px !important;
         padding: 1rem !important;
-    }
+    }}
 
-    .professional-uploader-box div[data-testid="stFileUploader"] button {
+    .professional-uploader-box div[data-testid="stFileUploader"] button {{
         background: linear-gradient(135deg, {accent}, {accent2}) !important;
         color: #FFFFFF !important;
         border-radius: 999px !important;
         font-weight: 800 !important;
         padding: 0.45rem 1rem !important;
-    }
+    }}
 
-    .professional-uploader-title {
+    .professional-uploader-title {{
         font-size: 0.9rem;
         font-weight: 800;
         color: {text_main} !important;
         margin-bottom: 0.25rem;
-    }
+    }}
 
-    .professional-uploader-subtitle {
+    .professional-uploader-subtitle {{
         font-size: 0.78rem;
         color: {text_sub} !important;
         margin-bottom: 0.65rem;
-    }
+    }}
 
     @media (max-width: 900px) {{
         .block-container {{ padding-left: 1rem !important; padding-right: 1rem !important; }}
