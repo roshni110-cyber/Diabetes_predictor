@@ -3,7 +3,9 @@ pandas
 numpy
 scikit-learn
 joblib
-pillow
+plotly
 reportlab
 matplotlib
-plotly
+pywhatkit
+pyautogui
+pyperclip
