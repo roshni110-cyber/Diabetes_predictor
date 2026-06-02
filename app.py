@@ -2371,3 +2371,11 @@ elif st.session_state.page == 'admin': admin_page()
 elif st.session_state.page == 'profile': profile_page()
 else:
     st.session_state.page = 'auth'; st.rerun()
+
+[data-testid="stSidebarCollapsedControl"] button span,
+button[data-testid="baseButton-header"] span,
+button[data-testid="baseButton-headerNoPadding"] span {
+    font-size: 0 !important;
+    color: transparent !important;
+    -webkit-text-fill-color: transparent !important;
+}
