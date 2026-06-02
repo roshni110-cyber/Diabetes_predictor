@@ -256,7 +256,7 @@ p, label, span {{ font-family: 'DM Sans', sans-serif !important; color: {TEXT} !
     color: transparent !important;
 }}
 [data-testid="stSidebarCollapsedControl"] button::before {{
-    content: "»" !important;
+    content: "➜" !important;
     font-size: 26px !important;
     font-weight: 900 !important;
     color: #DDD6FE !important;
@@ -302,7 +302,7 @@ section[data-testid="stSidebar"] button[data-testid="baseButton-header"] svg {{
 }}
 section[data-testid="stSidebar"] button[data-testid="baseButton-headerNoPadding"]::before,
 section[data-testid="stSidebar"] button[data-testid="baseButton-header"]::before {{
-    content: "«" !important;
+    content: "⬅" !important;
     font-size: 26px !important;
     font-weight: 900 !important;
     color: {'#DDD6FE' if DARK else '#4C1D95'} !important;
