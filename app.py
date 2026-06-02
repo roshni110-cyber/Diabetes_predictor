@@ -256,7 +256,7 @@ p, label, span {{ font-family: 'DM Sans', sans-serif !important; color: {TEXT} !
     color: transparent !important;
 }}
 [data-testid="stSidebarCollapsedControl"] button::before {{
-    content: "➜" !important;
+    content: "»" !important;
     font-size: 26px !important;
     font-weight: 900 !important;
     color: #DDD6FE !important;
@@ -302,7 +302,7 @@ section[data-testid="stSidebar"] button[data-testid="baseButton-header"] svg {{
 }}
 section[data-testid="stSidebar"] button[data-testid="baseButton-headerNoPadding"]::before,
 section[data-testid="stSidebar"] button[data-testid="baseButton-header"]::before {{
-    content: "⬅" !important;
+    content: "«" !important;
     font-size: 26px !important;
     font-weight: 900 !important;
     color: {'#DDD6FE' if DARK else '#4C1D95'} !important;
@@ -2371,11 +2371,3 @@ elif st.session_state.page == 'admin': admin_page()
 elif st.session_state.page == 'profile': profile_page()
 else:
     st.session_state.page = 'auth'; st.rerun()
-
-[data-testid="stSidebarCollapsedControl"] button span,
-button[data-testid="baseButton-header"] span,
-button[data-testid="baseButton-headerNoPadding"] span {
-    font-size: 0 !important;
-    color: transparent !important;
-    -webkit-text-fill-color: transparent !important;
-}
