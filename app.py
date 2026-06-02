@@ -256,7 +256,7 @@ p, label, span {{ font-family: 'DM Sans', sans-serif !important; color: {TEXT} !
     color: transparent !important;
 }}
 [data-testid="stSidebarCollapsedControl"] button::before {{
-    content: "➜" !important;
+    content: "»" !important;
     font-size: 26px !important;
     font-weight: 900 !important;
     color: #DDD6FE !important;
@@ -302,7 +302,7 @@ section[data-testid="stSidebar"] button[data-testid="baseButton-header"] svg {{
 }}
 section[data-testid="stSidebar"] button[data-testid="baseButton-headerNoPadding"]::before,
 section[data-testid="stSidebar"] button[data-testid="baseButton-header"]::before {{
-    content: "⬅" !important;
+    content: "«" !important;
     font-size: 26px !important;
     font-weight: 900 !important;
     color: {'#DDD6FE' if DARK else '#4C1D95'} !important;
@@ -857,32 +857,6 @@ button[data-testid="baseButton-header"] * {{
     -webkit-text-fill-color: {TEXT} !important;
     font-weight: 500 !important;
 }}
-
-/* FINAL SIDEBAR FIX */
-
-[data-testid="stIconMaterial"]{
-    display:none !important;
-    visibility:hidden !important;
-    opacity:0 !important;
-}
-
-button[data-testid="baseButton-header"]::before,
-button[data-testid="baseButton-headerNoPadding"]::before{
-    content:"⬅" !important;
-    font-size:26px !important;
-    font-weight:900 !important;
-    color:#4C1D95 !important;
-    display:block !important;
-}
-
-[data-testid="stSidebarCollapsedControl"] button::before{
-    content:"➡" !important;
-    font-size:26px !important;
-    font-weight:900 !important;
-    color:#4C1D95 !important;
-    display:block !important;
-}
-
 </style>
 <script>
 (function() {{
@@ -900,32 +874,6 @@ button[data-testid="baseButton-headerNoPadding"]::before{
 </script>
 '''
 st.markdown(css, unsafe_allow_html=True)
-
-
-st.markdown("""
-<style>
-[data-testid="stIconMaterial"]{
-    display:none !important;
-}
-
-button[data-testid="baseButton-header"]::before,
-button[data-testid="baseButton-headerNoPadding"]::before{
-    content:"⬅";
-    font-size:26px !important;
-    color:#4C1D95 !important;
-    display:block !important;
-}
-
-[data-testid="stSidebarCollapsedControl"] button::before{
-    content:"➡";
-    font-size:26px !important;
-    color:#4C1D95 !important;
-    display:block !important;
-}
-</style>
-""", unsafe_allow_html=True)
-
-
 
 # Fix number input double-fire (wheel scroll)
 import streamlit.components.v1 as components
