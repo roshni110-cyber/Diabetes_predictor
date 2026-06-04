@@ -29,6 +29,7 @@ DOCTORS_FILE = 'doctors.json'
 ADMINS_FILE = 'admins.json'
 REPORTS_FILE = 'reports.json'
 AUDIT_FILE = 'audit_log.json'
+LOGIN_STATE_FILE = 'login_state.json'
 MODEL_FILE = 'diabetes_model.pkl'
 COLUMNS_FILE = 'columns.pkl'
 
@@ -54,6 +55,60 @@ def add_audit(action, email='System', details=''):
     logs = load_json(AUDIT_FILE, [])
     logs.append({'time': datetime.now().strftime('%d-%m-%Y %H:%M:%S'), 'email': email, 'action': action, 'details': details})
     save_json(AUDIT_FILE, logs)
+
+
+# -----------------------------------------------------
+# LOGIN PERSISTENCE FIX
+# This saves the last logged-in user in a local JSON file so the
+# user remains logged in after browser refresh/reload.
+# Logout clears this file.
+# -----------------------------------------------------
+def save_login_state(email, user_type, name):
+    save_json(LOGIN_STATE_FILE, {
+        'logged_in': True,
+        'email': str(email).strip().lower(),
+        'user_type': user_type,
+        'name': name,
+        'saved_at': datetime.now().isoformat()
+    })
+
+
+def clear_login_state():
+    save_json(LOGIN_STATE_FILE, {})
+
+
+def restore_login_state():
+    data = load_json(LOGIN_STATE_FILE, {})
+    if not data or not data.get('logged_in'):
+        return
+
+    email = str(data.get('email', '')).strip().lower()
+    user_type = data.get('user_type')
+
+    # Restore only if the account still exists in the proper JSON database.
+    if user_type == 'admin' and email in admins:
+        st.session_state.logged_in = True
+        st.session_state.user_type = 'admin'
+        st.session_state.current_user_name = 'Admin'
+        st.session_state.current_user_email = email
+        st.session_state.page = 'admin'
+    elif user_type == 'patient' and email in users:
+        user = users[email]
+        st.session_state.logged_in = True
+        st.session_state.user_type = 'patient'
+        st.session_state.current_user_name = user.get('name', 'User')
+        st.session_state.current_user_email = email
+        st.session_state.page = 'prediction'
+    elif user_type == 'doctor' and email in doctors and doctors[email].get('approved', False):
+        doctor = doctors[email]
+        st.session_state.logged_in = True
+        st.session_state.user_type = 'doctor'
+        st.session_state.current_user_name = doctor.get('name', 'Doctor')
+        st.session_state.current_user_email = email
+        st.session_state.page = 'prediction'
+    else:
+        # If account was deleted or doctor is not approved anymore, remove saved login.
+        clear_login_state()
 
 
 DEFAULT_USERS = {
@@ -127,6 +182,10 @@ defaults = {
 for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
+
+# Restore login automatically after browser refresh/reload.
+if not st.session_state.logged_in:
+    restore_login_state()
 
 DARK = st.session_state.dark_mode
 
@@ -939,20 +998,42 @@ def reset_prediction_state():
 
 def login_user(email, password):
     email = email.strip().lower()
+
     if email in admins and admins[email] == password:
-        st.session_state.logged_in = True; st.session_state.user_type = 'admin'
-        st.session_state.current_user_name = 'Admin'; st.session_state.current_user_email = email
-        st.session_state.page = 'admin'; st.session_state.prediction_done = False; add_audit('Login', email, 'Admin logged in'); return True, ''
+        st.session_state.logged_in = True
+        st.session_state.user_type = 'admin'
+        st.session_state.current_user_name = 'Admin'
+        st.session_state.current_user_email = email
+        st.session_state.page = 'admin'
+        st.session_state.prediction_done = False
+        save_login_state(email, 'admin', 'Admin')
+        add_audit('Login', email, 'Admin logged in')
+        return True, ''
+
     if email in users and users[email].get('password') == password:
-        user = users[email]; st.session_state.logged_in = True; st.session_state.user_type = 'patient'
-        st.session_state.current_user_name = user.get('name', 'User'); st.session_state.current_user_email = email
-        st.session_state.page = 'prediction'; add_audit('Login', email, 'Patient logged in'); return True, ''
+        user = users[email]
+        st.session_state.logged_in = True
+        st.session_state.user_type = 'patient'
+        st.session_state.current_user_name = user.get('name', 'User')
+        st.session_state.current_user_email = email
+        st.session_state.page = 'prediction'
+        save_login_state(email, 'patient', user.get('name', 'User'))
+        add_audit('Login', email, 'Patient logged in')
+        return True, ''
+
     if email in doctors and doctors[email].get('password') == password:
         doctor = doctors[email]
-        if not doctor.get('approved', False): return False, 'Doctor account is waiting for admin approval.'
-        st.session_state.logged_in = True; st.session_state.user_type = 'doctor'
-        st.session_state.current_user_name = doctor.get('name', 'Doctor'); st.session_state.current_user_email = email
-        st.session_state.page = 'prediction'; add_audit('Login', email, 'Doctor logged in'); return True, ''
+        if not doctor.get('approved', False):
+            return False, 'Doctor account is waiting for admin approval.'
+        st.session_state.logged_in = True
+        st.session_state.user_type = 'doctor'
+        st.session_state.current_user_name = doctor.get('name', 'Doctor')
+        st.session_state.current_user_email = email
+        st.session_state.page = 'prediction'
+        save_login_state(email, 'doctor', doctor.get('name', 'Doctor'))
+        add_audit('Login', email, 'Doctor logged in')
+        return True, ''
+
     return False, 'Invalid email or password.'
 
 
@@ -1443,6 +1524,7 @@ def dashboard_sidebar():
 
     if st.sidebar.button('↪ Sign Out', use_container_width=True):
         add_audit('Logout', st.session_state.current_user_email, 'User logged out')
+        clear_login_state()
         for key in [
             'logged_in', 'user_type', 'current_user_name', 'current_user_email',
             'prediction_done', 'patient_data', 'prediction_result',
