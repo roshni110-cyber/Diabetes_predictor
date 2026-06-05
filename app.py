@@ -77,55 +77,6 @@ def clear_login_state():
     save_json(LOGIN_STATE_FILE, {})
 
 
-
-
-# -----------------------------------------------------
-# PATIENT INPUT PERSISTENCE FIX
-# Saves the latest clinical inputs so the same user sees them again
-# after logout, refresh, or next login.
-# -----------------------------------------------------
-def get_saved_clinical_input(user_type, patient_email='', doctor_email=''):
-    patient_email = str(patient_email or '').strip().lower()
-    doctor_email = str(doctor_email or '').strip().lower()
-    try:
-        if user_type == 'patient':
-            return users.get(patient_email, {}).get('last_input', {}) or {}
-        if user_type == 'doctor':
-            return doctors.get(doctor_email, {}).get('last_patient_inputs', {}).get(patient_email, {}) or {}
-    except Exception:
-        return {}
-    return {}
-
-
-def save_clinical_input(user_type, patient_email, patient_data, result=None, confidence=None, doctor_email=''):
-    patient_email = str(patient_email or '').strip().lower()
-    doctor_email = str(doctor_email or '').strip().lower()
-    try:
-        if user_type == 'patient' and patient_email in users:
-            users[patient_email]['last_input'] = patient_data
-            users[patient_email]['last_prediction'] = result
-            users[patient_email]['last_confidence'] = confidence
-            users[patient_email]['last_input_saved_at'] = datetime.now().isoformat()
-            save_json(USERS_FILE, users)
-        elif user_type == 'doctor' and doctor_email in doctors and patient_email:
-            doctors[doctor_email].setdefault('last_patient_inputs', {})
-            doctors[doctor_email]['last_patient_inputs'][patient_email] = patient_data
-            doctors[doctor_email].setdefault('last_patient_results', {})
-            doctors[doctor_email]['last_patient_results'][patient_email] = {
-                'result': result,
-                'confidence': confidence,
-                'saved_at': datetime.now().isoformat()
-            }
-            save_json(DOCTORS_FILE, doctors)
-    except Exception as e:
-        print('Could not save clinical input:', e)
-
-
-def safe_widget_key(prefix, identity):
-    clean = ''.join(ch if ch.isalnum() else '_' for ch in str(identity))
-    return f'{prefix}_{clean}'
-
-
 def restore_login_state():
     data = load_json(LOGIN_STATE_FILE, {})
     if not data or not data.get('logged_in'):
@@ -148,12 +99,6 @@ def restore_login_state():
         st.session_state.current_user_name = user.get('name', 'User')
         st.session_state.current_user_email = email
         st.session_state.page = 'prediction'
-        if user.get('last_input'):
-            st.session_state.patient_data = user.get('last_input')
-        if user.get('last_prediction'):
-            st.session_state.prediction_result = user.get('last_prediction')
-        if user.get('last_confidence') is not None:
-            st.session_state.confidence = user.get('last_confidence')
     elif user_type == 'doctor' and email in doctors and doctors[email].get('approved', False):
         doctor = doctors[email]
         st.session_state.logged_in = True
@@ -1072,14 +1017,6 @@ def login_user(email, password):
         st.session_state.current_user_name = user.get('name', 'User')
         st.session_state.current_user_email = email
         st.session_state.page = 'prediction'
-        st.session_state.prediction_done = False
-        st.session_state.pdf_bytes = None
-        if user.get('last_input'):
-            st.session_state.patient_data = user.get('last_input')
-        if user.get('last_prediction'):
-            st.session_state.prediction_result = user.get('last_prediction')
-        if user.get('last_confidence') is not None:
-            st.session_state.confidence = user.get('last_confidence')
         save_login_state(email, 'patient', user.get('name', 'User'))
         add_audit('Login', email, 'Patient logged in')
         return True, ''
@@ -1093,8 +1030,6 @@ def login_user(email, password):
         st.session_state.current_user_name = doctor.get('name', 'Doctor')
         st.session_state.current_user_email = email
         st.session_state.page = 'prediction'
-        st.session_state.prediction_done = False
-        st.session_state.pdf_bytes = None
         save_login_state(email, 'doctor', doctor.get('name', 'Doctor'))
         add_audit('Login', email, 'Doctor logged in')
         return True, ''
@@ -1590,13 +1525,12 @@ def dashboard_sidebar():
     if st.sidebar.button('↪ Sign Out', use_container_width=True):
         add_audit('Logout', st.session_state.current_user_email, 'User logged out')
         clear_login_state()
-        keep_dark_mode = st.session_state.get('dark_mode', False)
-        for key in list(st.session_state.keys()):
-            del st.session_state[key]
-        for k, v in defaults.items():
-            st.session_state[k] = v
-        st.session_state.dark_mode = keep_dark_mode
-        st.session_state.started = True
+        for key in [
+            'logged_in', 'user_type', 'current_user_name', 'current_user_email',
+            'prediction_done', 'patient_data', 'prediction_result',
+            'confidence', 'prediction_time', 'pdf_bytes'
+        ]:
+            st.session_state[key] = defaults[key]
         st.session_state.page = 'auth'
         st.session_state.auth_mode = 'signin'
         st.rerun()
@@ -2068,32 +2002,22 @@ def prediction_page():
         if st.button('← Change Patient Details', key='change_patient_btn', type='secondary'):
             st.session_state.doctor_patient_step = 1; st.rerun()
 
-    # Load previous clinical values for the same logged-in user / same doctor patient
-    if st.session_state.user_type == 'patient':
-        clinical_email = st.session_state.current_user_email
-        saved_clinical = get_saved_clinical_input('patient', clinical_email)
-        clinical_identity = f"patient_{clinical_email}"
-    else:
-        clinical_email = p_email
-        saved_clinical = get_saved_clinical_input('doctor', clinical_email, st.session_state.current_user_email)
-        clinical_identity = f"doctor_{st.session_state.current_user_email}_{clinical_email}"
-
     with st.container(border=True):
         st.markdown('<div class="card-heading"><div class="badge-num">1</div>Clinical Health Parameters</div>', unsafe_allow_html=True)
         c_left, c_right = st.columns(2)
         with c_left:
             st.markdown(f'<p style="color:{MUTED};font-size:13px;margin-bottom:12px;"> Metabolic Indicators</p>', unsafe_allow_html=True)
-            preg = st.number_input(' Pregnancies', 0, 20, int(saved_clinical.get('Pregnancies', 1)), key=safe_widget_key('pred_preg', clinical_identity), help='Number of times pregnant')
-            glucose = st.number_input(' Glucose (mg/dL)', 50, 250, int(saved_clinical.get('Glucose', 120)), key=safe_widget_key('pred_glucose', clinical_identity), help='Plasma glucose concentration (2hr OGTT)')
-            insulin = st.number_input(' Insulin (μU/mL)', 0, 400, int(saved_clinical.get('Insulin', 100)), key=safe_widget_key('pred_insulin', clinical_identity), help='2-Hour serum insulin. Normal: 16-166 μU/mL')
-            dpf = st.number_input(' Diabetes Pedigree', 0.0, 3.0, float(saved_clinical.get('DiabetesPedigreeFunction', 0.5)), key=safe_widget_key('pred_dpf', clinical_identity), help='Diabetes pedigree function — family history score')
+            preg = st.number_input(' Pregnancies', 0, 20, 1, help='Number of times pregnant')
+            glucose = st.number_input(' Glucose (mg/dL)', 50, 250, 120, help='Plasma glucose concentration (2hr OGTT)')
+            insulin = st.number_input(' Insulin (μU/mL)', 0, 400, 100, help='2-Hour serum insulin. Normal: 16-166 μU/mL')
+            dpf = st.number_input(' Diabetes Pedigree', 0.0, 3.0, 0.5, help='Diabetes pedigree function — family history score')
         with c_right:
             st.markdown(f'<p style="color:{MUTED};font-size:13px;margin-bottom:12px;"> Physical Indicators</p>', unsafe_allow_html=True)
-            bp = st.number_input(' Blood Pressure (mmHg)', 30, 140, int(saved_clinical.get('BloodPressure', 70)), key=safe_widget_key('pred_bp', clinical_identity), help='Diastolic blood pressure. Normal: 60-80 mmHg')
-            skin = st.number_input(' Skin Thickness (mm)', 0, 100, int(saved_clinical.get('SkinThickness', 20)), key=safe_widget_key('pred_skin', clinical_identity), help='Triceps skin fold thickness')
-            bmi = st.number_input(' BMI', 10.0, 70.0, float(saved_clinical.get('BMI', 25.0)), key=safe_widget_key('pred_bmi', clinical_identity), help='Body Mass Index. Normal: 18.5-24.9')
+            bp = st.number_input(' Blood Pressure (mmHg)', 30, 140, 70, help='Diastolic blood pressure. Normal: 60-80 mmHg')
+            skin = st.number_input(' Skin Thickness (mm)', 0, 100, 20, help='Triceps skin fold thickness')
+            bmi = st.number_input(' BMI', 10.0, 70.0, 25.0, help='Body Mass Index. Normal: 18.5-24.9')
             default_age = int(users.get(st.session_state.current_user_email, {}).get('age', 30)) if st.session_state.user_type == 'patient' else 35
-            age = st.number_input(' Age (years)', 1, 100, int(saved_clinical.get('Age', default_age)), key=safe_widget_key('pred_age', clinical_identity))
+            age = st.number_input(' Age (years)', 1, 100, default_age)
 
     # Pure st.markdown reference cards — no components.html
     st.markdown(f'''
@@ -2133,11 +2057,6 @@ def prediction_page():
 
         patient_data = {'Pregnancies': preg, 'Glucose': glucose, 'BloodPressure': bp, 'SkinThickness': skin, 'Insulin': insulin, 'BMI': bmi, 'DiabetesPedigreeFunction': dpf, 'Age': age}
         result, confidence = model_predict(patient_data)
-        # Save latest clinical input permanently for this account / doctor-patient pair
-        if st.session_state.user_type == 'patient':
-            save_clinical_input('patient', email, patient_data, result, confidence)
-        elif st.session_state.user_type == 'doctor':
-            save_clinical_input('doctor', email, patient_data, result, confidence, st.session_state.current_user_email)
         pred_time = datetime.now().strftime('%d-%m-%Y %H:%M:%S')
 
         # Build extra info dict for PDF
